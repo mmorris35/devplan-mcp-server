@@ -24,6 +24,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field
+from smithery.decorators import smithery
 
 from devplan_mcp.generators import generate_plan, plan_to_template_vars
 from devplan_mcp.models import ProjectBrief
@@ -1045,15 +1046,16 @@ async def get_template_resource(name: str) -> str:
 
 
 # =============================================================================
-# Factory Function (for Smithery and programmatic use)
+# Factory Function (for Smithery deployment)
 # =============================================================================
 
 
+@smithery.server()
 def create_server() -> FastMCP:
     """Create and return the FastMCP server instance.
 
-    This function can be called by Smithery or programmatically to get
-    the configured MCP server instance.
+    This function is called by Smithery to instantiate the server.
+    The @smithery.server() decorator handles configuration and lifecycle.
 
     Returns:
         FastMCP: The configured MCP server instance
