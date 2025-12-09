@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="url(#bg)" />
+
+  <!-- Document/Plan icon -->
+  <rect x="25" y="18" width="40" height="52" rx="3" fill="white" opacity="0.95"/>
+
+  <!-- Document lines (plan structure) -->
+  <rect x="32" y="28" width="26" height="3" rx="1" fill="#667eea"/>
+  <rect x="32" y="36" width="20" height="2" rx="1" fill="#a0aec0"/>
+  <rect x="32" y="42" width="22" height="2" rx="1" fill="#a0aec0"/>
+
+  <!-- Checkbox items (subtasks) -->
+  <rect x="32" y="50" width="6" height="6" rx="1" fill="none" stroke="#667eea" stroke-width="1.5"/>
+  <rect x="42" y="51" width="14" height="3" rx="1" fill="#a0aec0"/>
+
+  <rect x="32" y="60" width="6" height="6" rx="1" fill="none" stroke="#667eea" stroke-width="1.5"/>
+  <path d="M33.5 63 L35.5 65 L38.5 61" stroke="#48bb78" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="42" y="61" width="14" height="3" rx="1" fill="#a0aec0"/>
+
+  <!-- Gear/cog overlay (automation) -->
+  <circle cx="70" cy="70" r="18" fill="#4a5568"/>
+  <circle cx="70" cy="70" r="14" fill="#667eea"/>
+  <circle cx="70" cy="70" r="6" fill="#4a5568"/>
+
+  <!-- Gear teeth -->
+  <g fill="#667eea">
+    <rect x="68" y="53" width="4" height="6" rx="1"/>
+    <rect x="68" y="81" width="4" height="6" rx="1"/>
+    <rect x="53" y="68" width="6" height="4" rx="1"/>
+    <rect x="81" y="68" width="6" height="4" rx="1"/>
+    <rect x="56" y="56" width="5" height="4" rx="1" transform="rotate(45 58.5 58)"/>
+    <rect x="79" y="79" width="5" height="4" rx="1" transform="rotate(45 81.5 81)"/>
+    <rect x="79" y="56" width="5" height="4" rx="1" transform="rotate(-45 81.5 58)"/>
+    <rect x="56" y="79" width="5" height="4" rx="1" transform="rotate(-45 58.5 81)"/>
+  </g>
+</svg>

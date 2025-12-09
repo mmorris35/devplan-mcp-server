@@ -240,7 +240,18 @@ async def server_lifespan():
     logger.info("DevPlan MCP server shutting down...")
 
 
-mcp = FastMCP("devplan_mcp", lifespan=server_lifespan)
+mcp = FastMCP(
+    "devplan_mcp",
+    lifespan=server_lifespan,
+    instructions="""DevPlan MCP Server generates comprehensive development plans for software projects.
+
+Use the interview tools to gather requirements, then generate:
+- PROJECT_BRIEF.md - Structured project requirements
+- DEVELOPMENT_PLAN.md - Phases, tasks, and subtasks with git workflow
+- claude.md - Project-specific AI development rules
+
+Start with `devplan_interview_questions` or `create_development_plan` prompt.""",
+)
 
 
 # =============================================================================
@@ -1017,6 +1028,110 @@ async def devplan_create_brief(params: CreateBriefInput) -> str:
 
 
 # =============================================================================
+# Prompts
+# =============================================================================
+
+
+@mcp.prompt(
+    name="create_development_plan",
+    description="Guide the user through creating a complete development plan for their project",
+)
+async def create_development_plan_prompt() -> str:
+    """Prompt to guide development plan creation."""
+    return """You are helping the user create a comprehensive development plan for their software project.
+
+Follow these steps:
+
+1. **Gather Requirements**
+   - Use `devplan_interview_questions` to get the list of questions
+   - Ask each question conversationally, one at a time
+   - Collect: project name, type, goal, target users, features, tech preferences, timeline
+
+2. **Create the Brief**
+   - Once you have all answers, use `devplan_create_brief` to generate PROJECT_BRIEF.md
+   - Present the brief to the user for review
+
+3. **Generate the Plan**
+   - Use `devplan_generate_plan` with the brief to create DEVELOPMENT_PLAN.md
+   - The plan will have phases, tasks, and subtasks with git workflow
+
+4. **Generate Rules**
+   - Use `devplan_generate_claude_md` to create project-specific AI rules
+
+5. **Save Files**
+   - Save PROJECT_BRIEF.md, DEVELOPMENT_PLAN.md, and claude.md to the project root
+
+Start by greeting the user and asking about their project idea."""
+
+
+@mcp.prompt(
+    name="continue_subtask",
+    description="Continue working on a specific subtask from the development plan",
+)
+async def continue_subtask_prompt(subtask_id: str = "0.1.1") -> str:
+    """Prompt to continue work on a subtask."""
+    return f"""You are continuing development work on subtask {subtask_id}.
+
+Follow these steps:
+
+1. **Read Context**
+   - Read DEVELOPMENT_PLAN.md completely
+   - Read claude.md for project rules
+   - Use `devplan_get_subtask` with ID "{subtask_id}" to get full details
+
+2. **Verify Prerequisites**
+   - Check that all prerequisite subtasks are marked complete
+   - Read their completion notes for context
+
+3. **Implement**
+   - Complete ALL deliverables listed in the subtask
+   - Follow the git workflow (commit to the task branch)
+   - Run tests and linting before considering complete
+
+4. **Update Progress**
+   - Use `devplan_update_progress` to mark the subtask complete
+   - Include detailed completion notes
+
+5. **Commit**
+   - Make a semantic commit with the changes
+   - Format: `feat(component): Brief description`
+
+Start by reading the development plan and locating subtask {subtask_id}."""
+
+
+@mcp.prompt(
+    name="validate_and_fix_plan",
+    description="Validate a development plan and fix any issues found",
+)
+async def validate_and_fix_plan_prompt() -> str:
+    """Prompt to validate and fix a plan."""
+    return """You are validating and improving a development plan.
+
+Follow these steps:
+
+1. **Read the Plan**
+   - Read DEVELOPMENT_PLAN.md completely
+
+2. **Validate**
+   - Use `devplan_validate_plan` with strict=true
+   - Review all errors, warnings, and suggestions
+
+3. **Fix Issues**
+   - For each error, propose a fix
+   - Ensure phases are sequential (0, 1, 2, ...)
+   - Ensure tasks have format X.Y
+   - Ensure subtasks have format X.Y.Z
+   - Each subtask should have 3-7 deliverables
+   - All subtasks should include "(Single Session)" in title
+
+4. **Update the Plan**
+   - Make the necessary edits to DEVELOPMENT_PLAN.md
+   - Re-validate to confirm fixes
+
+Start by reading the development plan."""
+
+
+# =============================================================================
 # Resources
 # =============================================================================
 
@@ -1046,11 +1161,37 @@ async def get_template_resource(name: str) -> str:
 
 
 # =============================================================================
+# Configuration Schema (for Smithery)
+# =============================================================================
+
+
+class ServerConfigSchema(BaseModel):
+    """Configuration options for DevPlan MCP Server."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default_template: str = Field(
+        default="base",
+        description="Default template to use when auto-detection fails. Options: base, cli, web_app, api, library",
+    )
+    test_coverage: int = Field(
+        default=80,
+        description="Default test coverage percentage for generated claude.md rules",
+        ge=0,
+        le=100,
+    )
+    strict_validation: bool = Field(
+        default=False,
+        description="Enable strict validation mode (warnings become errors)",
+    )
+
+
+# =============================================================================
 # Factory Function (for Smithery deployment)
 # =============================================================================
 
 
-@smithery.server()
+@smithery.server(config_schema=ServerConfigSchema)
 def create_server() -> FastMCP:
     """Create and return the FastMCP server instance.
 
