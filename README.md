@@ -1,5 +1,7 @@
 # DevPlan MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@mmorris35/devplan-mcp-server)](https://smithery.ai/server/@mmorris35/devplan-mcp-server)
+
 MCP (Model Context Protocol) server that exposes [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) functionality as tools for Claude Code and other MCP clients.
 
 ## Features
