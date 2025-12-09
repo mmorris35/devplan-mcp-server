@@ -1168,7 +1168,7 @@ async def get_template_resource(name: str) -> str:
 class ServerConfigSchema(BaseModel):
     """Configuration options for DevPlan MCP Server."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     default_template: str = Field(
         default="base",
