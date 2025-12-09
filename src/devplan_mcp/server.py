@@ -7,7 +7,7 @@ development plans.
 
 File Name      : server.py
 Author         : Mike Morris
-Prerequisite   : Python 3.11+, mcp, pydantic
+Prerequisite   : Python 3.12+, mcp, pydantic
 Copyright      : (c) 2025 Mike Morris
 License        : MIT
 """
@@ -16,14 +16,19 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
-import smithery
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field
+
+from devplan_mcp.generators import generate_plan, plan_to_template_vars
+from devplan_mcp.models import ProjectBrief
+from devplan_mcp.parser import parse_project_brief
+from devplan_mcp.templates import list_templates, render_claude_md, render_plan, select_template
 
 # Configure logging to stderr (required for stdio transport)
 logging.basicConfig(
@@ -54,7 +59,7 @@ class ParseBriefInput(BaseModel):
     content: str = Field(
         ...,
         description="The full content of a PROJECT_BRIEF.md file to parse",
-        min_length=100,
+        min_length=50,
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.JSON,
@@ -72,7 +77,7 @@ class GeneratePlanInput(BaseModel):
         description="PROJECT_BRIEF.md content OR JSON-serialized ProjectBrief",
         min_length=50,
     )
-    template: Optional[str] = Field(
+    template: str | None = Field(
         default=None,
         description="Template to use: 'cli', 'web_app', 'api', 'library'. Auto-detected if not specified.",
     )
@@ -121,7 +126,7 @@ class ListTemplatesInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_type: Optional[str] = Field(
+    project_type: str | None = Field(
         default=None,
         description="Filter by project type: 'cli', 'web', 'api', 'library'",
     )
@@ -202,15 +207,15 @@ class CreateBriefInput(BaseModel):
         description="List of must-have features for MVP",
         min_length=1,
     )
-    tech_stack: Optional[dict[str, str]] = Field(
+    tech_stack: dict[str, str] | None = Field(
         default=None,
         description="Optional tech stack preferences (language, framework, database, etc.)",
     )
-    timeline: Optional[str] = Field(
+    timeline: str | None = Field(
         default=None,
         description="Project timeline (e.g., '2 weeks', '1 month')",
     )
-    constraints: Optional[list[str]] = Field(
+    constraints: list[str] | None = Field(
         default=None,
         description="Any constraints or requirements (must-use tech, cannot-use, etc.)",
     )
@@ -226,13 +231,8 @@ async def server_lifespan():
     """Manage server lifecycle - load templates on startup."""
     logger.info("DevPlan MCP server starting up...")
 
-    # TODO: Load templates from package resources
-    templates = {
-        "cli": "Command-line application template",
-        "web_app": "Full-stack web application template",
-        "api": "REST/GraphQL API service template",
-        "library": "Reusable library/package template",
-    }
+    # Get available templates
+    templates = list_templates()
 
     yield {"templates": templates}
 
@@ -240,6 +240,113 @@ async def server_lifespan():
 
 
 mcp = FastMCP("devplan_mcp", lifespan=server_lifespan)
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def _parse_brief_content(content: str) -> ProjectBrief:
+    """Parse brief content from markdown or JSON format.
+
+    Args:
+        content: Either PROJECT_BRIEF.md markdown or JSON-serialized ProjectBrief
+
+    Returns:
+        ProjectBrief instance
+    """
+    # Try JSON first
+    try:
+        data = json.loads(content)
+        return ProjectBrief(**data)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Parse as markdown
+    return parse_project_brief(content)
+
+
+def _extract_subtask_from_plan(plan_content: str, subtask_id: str) -> dict[str, Any]:
+    """Extract subtask details from a DEVELOPMENT_PLAN.md file.
+
+    Args:
+        plan_content: The full plan markdown content
+        subtask_id: Subtask ID in format X.Y.Z
+
+    Returns:
+        Dictionary with subtask details
+    """
+    # Parse subtask ID
+    parts = subtask_id.split(".")
+    phase_id = parts[0]
+    task_id = f"{parts[0]}.{parts[1]}"
+
+    # Find the subtask section using regex
+    # Pattern: **Subtask X.Y.Z: Title**
+    subtask_pattern = rf"\*\*Subtask {re.escape(subtask_id)}:\s*([^\*]+)\*\*"
+    subtask_match = re.search(subtask_pattern, plan_content)
+
+    if not subtask_match:
+        return {"error": f"Subtask {subtask_id} not found in plan"}
+
+    title = subtask_match.group(1).strip()
+
+    # Extract section content (until next subtask or task)
+    start_pos = subtask_match.start()
+    next_subtask = re.search(r"\*\*Subtask \d+\.\d+\.\d+:", plan_content[start_pos + 10:])
+    next_task = re.search(r"### Task \d+\.\d+:", plan_content[start_pos + 10:])
+
+    end_pos = len(plan_content)
+    if next_subtask:
+        end_pos = min(end_pos, start_pos + 10 + next_subtask.start())
+    if next_task:
+        end_pos = min(end_pos, start_pos + 10 + next_task.start())
+
+    section = plan_content[start_pos:end_pos]
+
+    # Extract deliverables
+    deliverables = []
+    deliverables_match = re.search(r"\*\*Deliverables\*\*:\s*(.*?)(?:\*\*|$)", section, re.DOTALL)
+    if deliverables_match:
+        deliverables_text = deliverables_match.group(1)
+        for line in deliverables_text.split("\n"):
+            match = re.match(r"^\s*-\s*\[[ x]\]\s*(.+)$", line)
+            if match:
+                deliverables.append(match.group(1).strip())
+
+    # Extract success criteria
+    success_criteria = []
+    criteria_match = re.search(r"\*\*Success Criteria\*\*:\s*(.*?)(?:\*\*|---)", section, re.DOTALL)
+    if criteria_match:
+        criteria_text = criteria_match.group(1)
+        for line in criteria_text.split("\n"):
+            match = re.match(r"^\s*-\s*\[[ x]\]\s*(.+)$", line)
+            if match:
+                success_criteria.append(match.group(1).strip())
+
+    # Check if completed (all deliverable checkboxes checked)
+    completed = "[x]" in section and "[ ]" not in section.split("**Completion Notes**")[0]
+
+    # Find parent task info
+    task_pattern = rf"### Task {re.escape(task_id)}:\s*([^\n]+)"
+    task_match = re.search(task_pattern, plan_content)
+    task_title = task_match.group(1).strip() if task_match else f"Task {task_id}"
+
+    # Find parent phase info
+    phase_pattern = rf"## Phase {phase_id}:\s*([^\n(]+)"
+    phase_match = re.search(phase_pattern, plan_content)
+    phase_title = phase_match.group(1).strip() if phase_match else f"Phase {phase_id}"
+
+    return {
+        "id": subtask_id,
+        "title": title,
+        "phase": f"Phase {phase_id}: {phase_title}",
+        "task": f"Task {task_id}: {task_title}",
+        "deliverables": deliverables,
+        "success_criteria": success_criteria,
+        "completed": completed,
+    }
 
 
 # =============================================================================
@@ -274,43 +381,51 @@ async def devplan_parse_brief(params: ParseBriefInput) -> str:
     """
     logger.info("Parsing project brief...")
 
-    # TODO: Implement actual parsing from ported parser module
-    # For now, return a placeholder showing the expected structure
+    try:
+        brief = _parse_brief_content(params.content)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to parse brief: {str(e)}"}, indent=2)
+
+    # Convert to dict for output
     parsed = {
-        "name": "Extracted project name",
-        "type": "cli",
-        "goal": "Extracted goal statement",
-        "target_users": ["User type 1", "User type 2"],
-        "timeline": "2 weeks",
-        "tech_stack": {
-            "language": "python",
-            "framework": None,
-            "database": None,
-        },
-        "features": [
-            {"name": "Feature 1", "priority": "must-have"},
-            {"name": "Feature 2", "priority": "should-have"},
-        ],
+        "project_name": brief.project_name,
+        "project_type": brief.project_type,
+        "primary_goal": brief.primary_goal,
+        "target_users": brief.target_users,
+        "timeline": brief.timeline,
+        "team_size": brief.team_size,
+        "key_features": brief.key_features,
+        "nice_to_have_features": brief.nice_to_have_features,
+        "must_use_tech": brief.must_use_tech,
+        "cannot_use_tech": brief.cannot_use_tech,
+        "deployment_target": brief.deployment_target,
     }
 
     if params.response_format == ResponseFormat.JSON:
         return json.dumps(parsed, indent=2)
 
     # Markdown format
+    features_list = "\n".join(f"- {f}" for f in brief.key_features) if brief.key_features else "- None specified"
+    tech_list = "\n".join(f"- {t}" for t in brief.must_use_tech) if brief.must_use_tech else "- None specified"
+
     return f"""# Parsed Project Brief
 
-**Name**: {parsed["name"]}
-**Type**: {parsed["type"]}
-**Timeline**: {parsed["timeline"]}
+**Name**: {brief.project_name}
+**Type**: {brief.project_type}
+**Timeline**: {brief.timeline}
+**Team Size**: {brief.team_size}
 
 ## Goal
-{parsed["goal"]}
+{brief.primary_goal}
 
 ## Target Users
-- {chr(10).join('- ' + u for u in parsed["target_users"])}
+{brief.target_users}
 
-## Features
-{chr(10).join(f"- [{f['priority']}] {f['name']}" for f in parsed["features"])}
+## Key Features
+{features_list}
+
+## Required Technologies
+{tech_list}
 """
 
 
@@ -343,28 +458,31 @@ async def devplan_generate_plan(params: GeneratePlanInput) -> str:
     """
     logger.info(f"Generating development plan using template: {params.template or 'auto'}")
 
-    # TODO: Implement actual generation from ported generator module
-    return """# Development Plan
+    try:
+        brief = _parse_brief_content(params.brief_content)
+    except Exception as e:
+        return f"# Error\n\nFailed to parse brief: {str(e)}"
 
-## Phase 0: Foundation
+    try:
+        # Generate plan structure
+        plan = generate_plan(brief)
 
-### Task 0.1: Project Setup
-**Branch**: `feature/0-1-setup`
-**Commit Prefix**: `[0.1]`
+        # Select template
+        template_name = params.template or select_template(brief.project_type)
 
-#### Subtask 0.1.1: Initialize Repository
-- [ ] Create repository structure
-- [ ] Initialize package manager
-- [ ] Set up virtual environment
-- [ ] Install base dependencies
-- [ ] Create .gitignore
+        # Convert to template variables
+        template_vars = plan_to_template_vars(plan, brief)
 
-**Success Criteria**: `pip install -e .` succeeds
+        # Render plan
+        rendered = render_plan(
+            template_name=template_name,
+            **template_vars,
+        )
 
----
-
-*Plan generation placeholder - full implementation pending*
-"""
+        return rendered
+    except Exception as e:
+        logger.error(f"Plan generation failed: {e}")
+        return f"# Error\n\nFailed to generate plan: {str(e)}"
 
 
 @mcp.tool(
@@ -395,34 +513,37 @@ async def devplan_generate_claude_md(params: GenerateClaudeMdInput) -> str:
     """
     logger.info(f"Generating claude.md for {params.language} project")
 
-    # TODO: Implement actual generation
-    return f"""# Claude Rules for Project
+    try:
+        brief = _parse_brief_content(params.brief_content)
+    except Exception as e:
+        return f"# Error\n\nFailed to parse brief: {str(e)}"
 
-## Language & Stack
-- Primary: {params.language}
-- Test Coverage: {params.test_coverage}%
+    try:
+        # Generate plan to get tech stack
+        plan = generate_plan(brief)
 
-## Development Rules
+        # Select template
+        template_name = select_template(brief.project_type)
 
-### Before Each Subtask
-1. Read this file and DEVELOPMENT_PLAN.md
-2. Identify the subtask deliverables
-3. Check prerequisites are met
+        # Build tech stack dict
+        tech_stack = plan.tech_stack.to_dict() if plan.tech_stack else {"language": params.language}
 
-### During Development
-1. Write tests alongside code
-2. Run linting before commits
-3. Update completion notes
+        # Override language if specified
+        if params.language:
+            tech_stack["language"] = params.language
 
-### After Each Subtask
-1. All tests pass
-2. Coverage >= {params.test_coverage}%
-3. Commit to task branch
+        # Render claude.md
+        rendered = render_claude_md(
+            template_name=template_name,
+            project_name=brief.project_name,
+            tech_stack=tech_stack,
+            test_coverage=params.test_coverage,
+        )
 
----
-
-*Rules generation placeholder - full implementation pending*
-"""
+        return rendered
+    except Exception as e:
+        logger.error(f"Claude.md generation failed: {e}")
+        return f"# Error\n\nFailed to generate claude.md: {str(e)}"
 
 
 @mcp.tool(
@@ -455,27 +576,100 @@ async def devplan_validate_plan(params: ValidatePlanInput) -> str:
     """
     logger.info(f"Validating plan (strict={params.strict})")
 
-    # TODO: Implement actual validation
-    return """# Plan Validation Report
+    errors: list[str] = []
+    warnings: list[str] = []
+    suggestions: list[str] = []
 
-## Summary
-- Errors: 0
-- Warnings: 2
-- Suggestions: 3
+    content = params.content
 
-## Warnings
-1. Subtask 1.2.3 has 8 deliverables (recommended: 3-7)
-2. Phase 3 has no estimated duration
+    # Check for required sections
+    if "## Project Overview" not in content and "## Overview" not in content:
+        errors.append("Missing 'Project Overview' section")
 
-## Suggestions
-1. Consider adding more detail to success criteria in Task 2.1
-2. Subtask 0.1.1 could be split into smaller pieces
-3. Add completion notes template to all subtasks
+    if "## Phase 0" not in content and "## Phase 0:" not in content:
+        errors.append("Missing Phase 0 (Foundation)")
 
----
+    # Find all phases
+    phase_matches = re.findall(r"## Phase (\d+):", content)
+    if not phase_matches:
+        errors.append("No phases found in plan")
+    else:
+        # Check phases are sequential
+        phase_ids = [int(p) for p in phase_matches]
+        if phase_ids != list(range(len(phase_ids))):
+            warnings.append(f"Phase IDs should be sequential starting from 0. Found: {phase_ids}")
 
-*Validation placeholder - full implementation pending*
-"""
+    # Find all tasks
+    task_matches = re.findall(r"### Task (\d+\.\d+):", content)
+    if not task_matches:
+        warnings.append("No tasks found - plan may be incomplete")
+
+    # Find all subtasks
+    subtask_matches = re.findall(r"\*\*Subtask (\d+\.\d+\.\d+):", content)
+    if not subtask_matches:
+        warnings.append("No subtasks found - plan may be incomplete")
+
+    # Check for deliverables in subtasks
+    deliverable_sections = re.findall(r"\*\*Deliverables\*\*:(.*?)(?:\*\*|---)", content, re.DOTALL)
+    for i, section in enumerate(deliverable_sections):
+        items = re.findall(r"^\s*-\s*\[", section, re.MULTILINE)
+        count = len(items)
+        if count < 3:
+            warnings.append(f"Subtask section {i+1} has only {count} deliverables (recommended: 3-7)")
+        elif count > 7:
+            suggestions.append(f"Subtask section {i+1} has {count} deliverables - consider splitting")
+
+    # Check for git strategy
+    if "Git Strategy" not in content and "git_strategy" not in content.lower():
+        suggestions.append("Consider adding Git Strategy section for each task")
+
+    # Check for success criteria
+    if "Success Criteria" not in content:
+        warnings.append("No Success Criteria sections found")
+
+    # Build report
+    total_errors = len(errors)
+    total_warnings = len(warnings)
+    total_suggestions = len(suggestions)
+
+    if params.strict:
+        total_errors += total_warnings
+        errors.extend(warnings)
+        warnings = []
+
+    status = "✅ Valid" if total_errors == 0 else "❌ Invalid"
+
+    report_lines = [
+        "# Plan Validation Report",
+        "",
+        f"**Status**: {status}",
+        "",
+        "## Summary",
+        f"- Errors: {total_errors}",
+        f"- Warnings: {total_warnings}",
+        f"- Suggestions: {total_suggestions}",
+        "",
+    ]
+
+    if errors:
+        report_lines.extend(["## Errors", ""])
+        for i, error in enumerate(errors, 1):
+            report_lines.append(f"{i}. {error}")
+        report_lines.append("")
+
+    if warnings:
+        report_lines.extend(["## Warnings", ""])
+        for i, warning in enumerate(warnings, 1):
+            report_lines.append(f"{i}. {warning}")
+        report_lines.append("")
+
+    if suggestions:
+        report_lines.extend(["## Suggestions", ""])
+        for i, suggestion in enumerate(suggestions, 1):
+            report_lines.append(f"{i}. {suggestion}")
+        report_lines.append("")
+
+    return "\n".join(report_lines)
 
 
 @mcp.tool(
@@ -504,31 +698,14 @@ async def devplan_list_templates(params: ListTemplatesInput) -> str:
     """
     logger.info(f"Listing templates (filter={params.project_type})")
 
-    templates = [
-        {
-            "name": "cli",
-            "description": "Command-line application",
-            "use_cases": ["Developer tools", "Automation scripts", "System utilities"],
-        },
-        {
-            "name": "web_app",
-            "description": "Full-stack web application",
-            "use_cases": ["SaaS products", "Internal tools", "Customer portals"],
-        },
-        {
-            "name": "api",
-            "description": "REST or GraphQL API service",
-            "use_cases": ["Backend services", "Microservices", "Data APIs"],
-        },
-        {
-            "name": "library",
-            "description": "Reusable library or package",
-            "use_cases": ["SDK development", "Shared utilities", "Open source packages"],
-        },
-    ]
+    templates = list_templates()
 
     if params.project_type:
-        templates = [t for t in templates if t["name"] == params.project_type]
+        templates = [
+            t for t in templates
+            if params.project_type.lower() in t["name"].lower()
+            or any(params.project_type.lower() in pt.lower() for pt in t.get("project_types", []))
+        ]
 
     if params.response_format == ResponseFormat.JSON:
         return json.dumps(templates, indent=2)
@@ -537,12 +714,14 @@ async def devplan_list_templates(params: ListTemplatesInput) -> str:
     lines = ["# Available Templates", ""]
     for template in templates:
         lines.append(f"## {template['name']}")
-        lines.append(f"{template['description']}")
+        lines.append(f"{template.get('description', 'No description')}")
         lines.append("")
-        lines.append("**Use Cases:**")
-        for use_case in template["use_cases"]:
-            lines.append(f"- {use_case}")
-        lines.append("")
+        project_types = template.get("project_types", [])
+        if project_types:
+            lines.append("**Matches project types:**")
+            for ptype in project_types:
+                lines.append(f"- {ptype}")
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -573,28 +752,8 @@ async def devplan_get_subtask(params: GetSubtaskInput) -> str:
     """
     logger.info(f"Getting subtask {params.subtask_id}")
 
-    # TODO: Implement actual subtask extraction
-    return json.dumps(
-        {
-            "id": params.subtask_id,
-            "name": "Example Subtask",
-            "phase": "Phase 1: Core Features",
-            "task": "Task 1.2: User Authentication",
-            "branch": "feature/1-2-user-auth",
-            "prerequisites": ["1.1.3"],
-            "deliverables": [
-                "Implement login endpoint",
-                "Add password hashing",
-                "Create JWT token generation",
-                "Write authentication tests",
-            ],
-            "files": ["src/auth/login.py", "tests/test_auth.py"],
-            "success_criteria": "All auth tests pass, coverage > 80%",
-            "completed": False,
-            "completion_notes": None,
-        },
-        indent=2,
-    )
+    result = _extract_subtask_from_plan(params.plan_content, params.subtask_id)
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool(
@@ -626,19 +785,64 @@ async def devplan_update_progress(params: UpdateProgressInput) -> str:
     """
     logger.info(f"Marking subtask {params.subtask_id} as complete")
 
-    # TODO: Implement actual plan update
-    # This would parse the plan, find the subtask, update checkbox, add notes
-    return f"""# Updated Plan
+    content = params.plan_content
 
-Subtask {params.subtask_id} marked complete.
+    # Find the subtask section
+    subtask_pattern = rf"(\*\*Subtask {re.escape(params.subtask_id)}:[^\*]+\*\*)"
+    if not re.search(subtask_pattern, content):
+        return f"# Error\n\nSubtask {params.subtask_id} not found in plan"
 
-**Completion Notes:**
-{params.completion_notes}
+    # Find the completion notes section for this subtask
+    # Pattern: from **Subtask X.Y.Z** to the next subtask or task
+    subtask_start = content.find(f"**Subtask {params.subtask_id}:")
+    next_subtask = re.search(
+        r"\*\*Subtask \d+\.\d+\.\d+:",
+        content[subtask_start + 10:]
+    )
+    next_task = re.search(
+        r"### Task \d+\.\d+:",
+        content[subtask_start + 10:]
+    )
 
----
+    # Determine section end
+    section_end = len(content)
+    if next_subtask:
+        section_end = min(section_end, subtask_start + 10 + next_subtask.start())
+    if next_task:
+        section_end = min(section_end, subtask_start + 10 + next_task.start())
 
-*Progress update placeholder - returns modified plan content*
+    section = content[subtask_start:section_end]
+
+    # Update checkboxes from [ ] to [x] in deliverables and success criteria
+    updated_section = re.sub(r"\[ \]", "[x]", section)
+
+    # Update completion notes section
+    notes_pattern = r"(\*\*Completion Notes\*\*:.*?)(?=---|\*\*Subtask|\Z)"
+    notes_replacement = f"""**Completion Notes**:
+- **Implementation**: {params.completion_notes}
+- **Files Created**: (updated by Claude Code)
+- **Files Modified**: (updated by Claude Code)
+- **Tests**: (updated by Claude Code)
+- **Build**: ✅ Success
+- **Branch**: feature/{params.subtask_id.replace('.', '-')}
+- **Notes**: Marked complete via MCP
+
 """
+
+    if re.search(notes_pattern, updated_section, re.DOTALL):
+        updated_section = re.sub(notes_pattern, notes_replacement, updated_section, flags=re.DOTALL)
+    else:
+        # Add completion notes at end of section
+        updated_section = updated_section.rstrip() + "\n\n" + notes_replacement
+
+    # Replace section in content
+    updated_content = content[:subtask_start] + updated_section + content[section_end:]
+
+    # Also update progress tracking section (change [ ] to [x] for this subtask)
+    tracking_pattern = rf"(\- \[) \] ({re.escape(params.subtask_id)}:)"
+    updated_content = re.sub(tracking_pattern, r"\1x] \2", updated_content)
+
+    return updated_content
 
 
 @mcp.tool(
@@ -750,13 +954,17 @@ async def devplan_create_brief(params: CreateBriefInput) -> str:
     # Build tech stack section
     tech_stack_section = ""
     if params.tech_stack:
-        tech_items = "\n".join(f"  - **{k}**: {v}" for k, v in params.tech_stack.items())
+        tech_items = "\n".join(f"- **{k}**: {v}" for k, v in params.tech_stack.items())
         tech_stack_section = f"""
+## Technical Requirements
+
 ### Tech Stack
 {tech_items}
 """
     else:
         tech_stack_section = """
+## Technical Requirements
+
 ### Tech Stack
 - To be determined based on project type
 """
@@ -764,39 +972,40 @@ async def devplan_create_brief(params: CreateBriefInput) -> str:
     # Build constraints section
     constraints_section = ""
     if params.constraints:
-        constraint_items = "\n".join(f"- {c}" for c in params.constraints)
-        constraints_section = f"""
-### Constraints
-{constraint_items}
-"""
+        must_use = [c for c in params.constraints if not c.lower().startswith("cannot")]
+        cannot_use = [c for c in params.constraints if c.lower().startswith("cannot")]
+
+        if must_use:
+            constraints_section += "\n### Must Use\n" + "\n".join(f"- {c}" for c in must_use)
+        if cannot_use:
+            constraints_section += "\n### Cannot Use\n" + "\n".join(f"- {c.replace('Cannot use ', '')}" for c in cannot_use)
 
     brief = f"""# Project Brief: {params.name}
 
-## Overview
+## Basic Information
 
-**Project Name**: {params.name}
-**Project Type**: {params.project_type}
-**Timeline**: {params.timeline or "To be determined"}
+- **Project Name**: {params.name}
+- **Project Type**: {params.project_type}
+- **Primary Goal**: {params.goal}
+- **Target Users**: {", ".join(params.target_users)}
+- **Timeline**: {params.timeline or "To be determined"}
+- **Team Size**: 1
 
-## Goal
+## Functional Requirements
 
-{params.goal}
+### Key Features
+{chr(10).join(f"- {feature}" for feature in params.features)}
 
-## Target Users
-
-{chr(10).join(f"- {user}" for user in params.target_users)}
-
-## MVP Features
-
-{chr(10).join(f"- [ ] {feature}" for feature in params.features)}
+### Nice-to-Have Features
+- Additional features to be determined
 {tech_stack_section}
 {constraints_section}
 ## Success Criteria
 
-- [ ] All MVP features implemented and working
-- [ ] Test coverage > 80%
-- [ ] Documentation complete
-- [ ] Ready for initial users
+- All key features implemented and working
+- Test coverage > 80%
+- Documentation complete
+- Ready for initial users
 
 ---
 
@@ -814,9 +1023,10 @@ async def devplan_create_brief(params: CreateBriefInput) -> str:
 @mcp.resource("templates://list")
 async def list_template_resource() -> str:
     """List all available templates as a resource."""
+    templates = list_templates()
     return json.dumps(
         {
-            "templates": ["cli", "web_app", "api", "library"],
+            "templates": [t["name"] for t in templates],
             "description": "Available project templates for development plan generation",
         }
     )
@@ -825,30 +1035,25 @@ async def list_template_resource() -> str:
 @mcp.resource("templates://{name}")
 async def get_template_resource(name: str) -> str:
     """Get a specific template by name."""
-    templates = {
-        "cli": "CLI application template content...",
-        "web_app": "Web application template content...",
-        "api": "API service template content...",
-        "library": "Library template content...",
-    }
+    templates = list_templates()
+    template = next((t for t in templates if t["name"] == name), None)
 
-    if name not in templates:
+    if not template:
         return json.dumps({"error": f"Template '{name}' not found"})
 
-    return templates[name]
+    return json.dumps(template, indent=2)
 
 
 # =============================================================================
-# Smithery Entry Point
+# Factory Function (for Smithery and programmatic use)
 # =============================================================================
 
 
-@smithery.server()
 def create_server() -> FastMCP:
-    """Create and return the FastMCP server instance for Smithery deployment.
+    """Create and return the FastMCP server instance.
 
-    This function is called by Smithery to instantiate the server.
-    The @smithery.server() decorator handles configuration and lifecycle.
+    This function can be called by Smithery or programmatically to get
+    the configured MCP server instance.
 
     Returns:
         FastMCP: The configured MCP server instance
