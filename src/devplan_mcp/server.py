@@ -171,6 +171,51 @@ class UpdateProgressInput(BaseModel):
     )
 
 
+class CreateBriefInput(BaseModel):
+    """Input for creating a PROJECT_BRIEF.md from interview answers."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    name: str = Field(
+        ...,
+        description="Project name",
+        min_length=1,
+        max_length=100,
+    )
+    project_type: str = Field(
+        ...,
+        description="Project type: 'cli', 'web_app', 'api', or 'library'",
+    )
+    goal: str = Field(
+        ...,
+        description="One-sentence description of what the project does",
+        min_length=10,
+        max_length=500,
+    )
+    target_users: list[str] = Field(
+        ...,
+        description="List of target user types",
+        min_length=1,
+    )
+    features: list[str] = Field(
+        ...,
+        description="List of must-have features for MVP",
+        min_length=1,
+    )
+    tech_stack: Optional[dict[str, str]] = Field(
+        default=None,
+        description="Optional tech stack preferences (language, framework, database, etc.)",
+    )
+    timeline: Optional[str] = Field(
+        default=None,
+        description="Project timeline (e.g., '2 weeks', '1 month')",
+    )
+    constraints: Optional[list[str]] = Field(
+        default=None,
+        description="Any constraints or requirements (must-use tech, cannot-use, etc.)",
+    )
+
+
 # =============================================================================
 # Server Initialization
 # =============================================================================
@@ -594,6 +639,171 @@ Subtask {params.subtask_id} marked complete.
 
 *Progress update placeholder - returns modified plan content*
 """
+
+
+@mcp.tool(
+    name="devplan_interview_questions",
+    annotations={
+        "title": "Get Brief Interview Questions",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+)
+async def devplan_interview_questions() -> str:
+    """Get the list of questions needed to create a project brief.
+
+    Returns a structured list of questions that should be asked to gather
+    all information needed for a complete PROJECT_BRIEF.md. Use this to
+    guide a conversation with the user, then pass the answers to
+    devplan_create_brief.
+
+    Returns:
+        str: JSON list of questions with IDs, text, and whether required
+    """
+    logger.info("Returning interview questions for project brief")
+
+    questions = [
+        {
+            "id": "name",
+            "question": "What's your project called?",
+            "required": True,
+            "example": "My Awesome CLI Tool",
+        },
+        {
+            "id": "project_type",
+            "question": "What type of project is this? (cli, web_app, api, or library)",
+            "required": True,
+            "options": ["cli", "web_app", "api", "library"],
+        },
+        {
+            "id": "goal",
+            "question": "In one sentence, what does this project do? What problem does it solve?",
+            "required": True,
+            "example": "A command-line tool that converts markdown files to PDF with syntax highlighting",
+        },
+        {
+            "id": "target_users",
+            "question": "Who will use this? List the types of users.",
+            "required": True,
+            "example": ["Developers", "Technical writers", "Documentation teams"],
+        },
+        {
+            "id": "features",
+            "question": "What are the 3-5 must-have features for the MVP?",
+            "required": True,
+            "example": [
+                "Parse markdown files",
+                "Convert to PDF",
+                "Support code syntax highlighting",
+                "Custom styling options",
+            ],
+        },
+        {
+            "id": "tech_stack",
+            "question": "Do you have tech stack preferences? (language, framework, database, etc.) Or should I recommend based on project type?",
+            "required": False,
+            "example": {"language": "Python 3.11+", "framework": "Click", "testing": "pytest"},
+        },
+        {
+            "id": "timeline",
+            "question": "What's your timeline? (e.g., '2 weeks', '1 month')",
+            "required": False,
+            "example": "2 weeks",
+        },
+        {
+            "id": "constraints",
+            "question": "Any constraints? Technologies you must use or cannot use? Deployment requirements?",
+            "required": False,
+            "example": ["Must use PostgreSQL", "Cannot use Docker", "Deploy to AWS Lambda"],
+        },
+    ]
+
+    return json.dumps({"questions": questions, "total": len(questions)}, indent=2)
+
+
+@mcp.tool(
+    name="devplan_create_brief",
+    annotations={
+        "title": "Create Project Brief",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+)
+async def devplan_create_brief(params: CreateBriefInput) -> str:
+    """Create a complete PROJECT_BRIEF.md from interview answers.
+
+    Takes the answers collected from the interview questions and generates
+    a well-structured PROJECT_BRIEF.md ready for use with devplan_generate_plan.
+
+    Args:
+        params: CreateBriefInput containing all project information
+
+    Returns:
+        str: Complete PROJECT_BRIEF.md content in markdown format
+    """
+    logger.info(f"Creating project brief for: {params.name}")
+
+    # Build tech stack section
+    tech_stack_section = ""
+    if params.tech_stack:
+        tech_items = "\n".join(f"  - **{k}**: {v}" for k, v in params.tech_stack.items())
+        tech_stack_section = f"""
+### Tech Stack
+{tech_items}
+"""
+    else:
+        tech_stack_section = """
+### Tech Stack
+- To be determined based on project type
+"""
+
+    # Build constraints section
+    constraints_section = ""
+    if params.constraints:
+        constraint_items = "\n".join(f"- {c}" for c in params.constraints)
+        constraints_section = f"""
+### Constraints
+{constraint_items}
+"""
+
+    brief = f"""# Project Brief: {params.name}
+
+## Overview
+
+**Project Name**: {params.name}
+**Project Type**: {params.project_type}
+**Timeline**: {params.timeline or "To be determined"}
+
+## Goal
+
+{params.goal}
+
+## Target Users
+
+{chr(10).join(f"- {user}" for user in params.target_users)}
+
+## MVP Features
+
+{chr(10).join(f"- [ ] {feature}" for feature in params.features)}
+{tech_stack_section}
+{constraints_section}
+## Success Criteria
+
+- [ ] All MVP features implemented and working
+- [ ] Test coverage > 80%
+- [ ] Documentation complete
+- [ ] Ready for initial users
+
+---
+
+*Generated with DevPlan MCP Server*
+"""
+
+    return brief
 
 
 # =============================================================================
