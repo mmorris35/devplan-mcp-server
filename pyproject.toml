@@ -40,7 +40,7 @@ dev = [
 devplan-mcp = "devplan_mcp.server:main"
 
 [tool.smithery]
-server = "devplan_mcp.server:create_server"
+server = "devplan_mcp.server_minimal:create_server"
 name = "DevPlan"
 icon = "https://raw.githubusercontent.com/mmorris35/devplan-mcp-server/main/icon.svg"
 
