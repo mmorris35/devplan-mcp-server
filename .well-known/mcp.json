@@ -1,0 +1,324 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+  "version": "1.0",
+  "protocolVersion": "2024-11-05",
+  "serverInfo": {
+    "name": "devplan-mcp-server",
+    "title": "DevPlan MCP Server",
+    "version": "0.1.0"
+  },
+  "description": "Generate comprehensive development plans for software projects. Creates PROJECT_BRIEF.md, DEVELOPMENT_PLAN.md with phases/tasks/subtasks, and claude.md rules files.",
+  "iconUrl": "https://raw.githubusercontent.com/mmorris35/devplan-mcp-server/main/icon.svg",
+  "documentationUrl": "https://github.com/mmorris35/devplan-mcp-server",
+  "transport": {
+    "type": "streamable-http",
+    "endpoint": "/mcp"
+  },
+  "capabilities": {
+    "tools": true,
+    "prompts": true,
+    "resources": true
+  },
+  "tools": [
+    {
+      "name": "devplan_parse_brief",
+      "description": "Parse a PROJECT_BRIEF.md file into structured data. Takes raw markdown content and extracts all fields into a structured ProjectBrief object.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The full content of a PROJECT_BRIEF.md file to parse",
+            "minLength": 50
+          },
+          "response_format": {
+            "type": "string",
+            "enum": ["json", "markdown"],
+            "default": "json",
+            "description": "Output format: 'json' for structured data, 'markdown' for human-readable"
+          }
+        },
+        "required": ["content"]
+      },
+      "annotations": {
+        "title": "Parse Project Brief",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_generate_plan",
+      "description": "Generate a complete DEVELOPMENT_PLAN.md from a project brief. Creates phases, tasks, and subtasks with 3-7 deliverables each, prerequisites, success criteria, and git workflow guidance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brief_content": {
+            "type": "string",
+            "description": "PROJECT_BRIEF.md content OR JSON-serialized ProjectBrief",
+            "minLength": 50
+          },
+          "template": {
+            "type": "string",
+            "description": "Template to use: 'cli', 'web_app', 'api', 'library'. Auto-detected if not specified."
+          }
+        },
+        "required": ["brief_content"]
+      },
+      "annotations": {
+        "title": "Generate Development Plan",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_generate_claude_md",
+      "description": "Generate a claude.md rules file for a project. Creates project-specific rules for Claude Code including testing requirements, code quality standards, and git workflow.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brief_content": {
+            "type": "string",
+            "description": "PROJECT_BRIEF.md content OR JSON-serialized ProjectBrief",
+            "minLength": 50
+          },
+          "language": {
+            "type": "string",
+            "default": "python",
+            "description": "Primary language: 'python', 'typescript', 'go', 'rust'"
+          },
+          "test_coverage": {
+            "type": "integer",
+            "default": 80,
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Required test coverage percentage"
+          }
+        },
+        "required": ["brief_content"]
+      },
+      "annotations": {
+        "title": "Generate Claude Rules",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_validate_plan",
+      "description": "Validate a DEVELOPMENT_PLAN.md for completeness and consistency. Checks phases, tasks, subtasks, deliverables count, prerequisites, and success criteria.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The full content of a DEVELOPMENT_PLAN.md file to validate",
+            "minLength": 100
+          },
+          "strict": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable strict validation (warnings become errors)"
+          }
+        },
+        "required": ["content"]
+      },
+      "annotations": {
+        "title": "Validate Development Plan",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_list_templates",
+      "description": "List available project templates for CLI, web app, API, and library projects with descriptions and use cases.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project_type": {
+            "type": "string",
+            "description": "Filter by project type: 'cli', 'web', 'api', 'library'"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": ["json", "markdown"],
+            "default": "markdown",
+            "description": "Output format"
+          }
+        }
+      },
+      "annotations": {
+        "title": "List Available Templates",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_get_subtask",
+      "description": "Get details for a specific subtask by ID. Extracts subtask with full context including parent task, phase, prerequisites, deliverables, and success criteria.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "plan_content": {
+            "type": "string",
+            "description": "The DEVELOPMENT_PLAN.md content",
+            "minLength": 100
+          },
+          "subtask_id": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Subtask ID in format 'X.Y.Z' (e.g., '1.2.3')"
+          }
+        },
+        "required": ["plan_content", "subtask_id"]
+      },
+      "annotations": {
+        "title": "Get Subtask Details",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_update_progress",
+      "description": "Mark a subtask as complete and add completion notes. Updates checkboxes and adds implementation details to the plan.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "plan_content": {
+            "type": "string",
+            "description": "The DEVELOPMENT_PLAN.md content",
+            "minLength": 100
+          },
+          "subtask_id": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Subtask ID to mark complete (format: 'X.Y.Z')"
+          },
+          "completion_notes": {
+            "type": "string",
+            "description": "Notes about what was completed, issues encountered, etc.",
+            "minLength": 10,
+            "maxLength": 2000
+          }
+        },
+        "required": ["plan_content", "subtask_id", "completion_notes"]
+      },
+      "annotations": {
+        "title": "Update Subtask Progress",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_interview_questions",
+      "description": "Get the list of questions needed to create a project brief. Returns structured questions to guide gathering all information for a complete PROJECT_BRIEF.md.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "title": "Get Brief Interview Questions",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "devplan_create_brief",
+      "description": "Create a complete PROJECT_BRIEF.md from interview answers. Generates a well-structured brief ready for plan generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Project name",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "project_type": {
+            "type": "string",
+            "description": "Project type: 'cli', 'web_app', 'api', or 'library'"
+          },
+          "goal": {
+            "type": "string",
+            "description": "One-sentence description of what the project does",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "target_users": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of target user types",
+            "minItems": 1
+          },
+          "features": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of must-have features for MVP",
+            "minItems": 1
+          },
+          "tech_stack": {
+            "type": "object",
+            "description": "Optional tech stack preferences (language, framework, database, etc.)"
+          },
+          "timeline": {
+            "type": "string",
+            "description": "Project timeline (e.g., '2 weeks', '1 month')"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Any constraints or requirements"
+          }
+        },
+        "required": ["name", "project_type", "goal", "target_users", "features"]
+      },
+      "annotations": {
+        "title": "Create Project Brief",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "create_development_plan",
+      "description": "Guide the user through creating a complete development plan for their project"
+    },
+    {
+      "name": "continue_subtask",
+      "description": "Continue working on a specific subtask from the development plan"
+    },
+    {
+      "name": "validate_and_fix_plan",
+      "description": "Validate a development plan and fix any issues found"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "templates://list",
+      "name": "Template List",
+      "description": "List of available project templates"
+    },
+    {
+      "uriTemplate": "templates://{name}",
+      "name": "Template Details",
+      "description": "Get details for a specific template by name"
+    }
+  ]
+}
