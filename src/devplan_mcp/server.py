@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sys
 from enum import Enum
 from typing import Any
 
@@ -30,12 +29,7 @@ from devplan_mcp.models import ProjectBrief
 from devplan_mcp.parser import parse_project_brief
 from devplan_mcp.templates import list_templates, render_claude_md, render_plan, select_template
 
-# Configure logging to stderr (required for stdio transport)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stderr,
-)
+# Get logger (configured lazily to avoid issues in hosted environments)
 logger = logging.getLogger("devplan_mcp")
 
 
