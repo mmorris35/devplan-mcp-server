@@ -1,15 +1,17 @@
-# Python
+# Python-generated files
 __pycache__/
-*.py[cod]
-*.so
-.venv/
-venv/
-.env
-
-# Build
+*.py[oc]
 build/
 dist/
-*.egg-info/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# locks
+uv.lock
+poetry.lock
 
 # IDE
 .vscode/
