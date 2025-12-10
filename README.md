@@ -449,3 +449,4 @@ Made with ❤️ for the AI-assisted development community
 [Report Bug](https://github.com/mmorris35/devplan-mcp-server/issues) • [Request Feature](https://github.com/mmorris35/devplan-mcp-server/issues)
 
 </div>
+
