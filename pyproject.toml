@@ -38,14 +38,13 @@ dev = [
 
 [project.scripts]
 devplan-mcp = "devplan_mcp.server:main"
+dev = "smithery.cli.dev:main"
+playground = "smithery.cli.playground:main"
 
 [tool.smithery]
 server = "devplan_mcp.server_minimal:create_server"
 name = "DevPlan"
 icon = "https://raw.githubusercontent.com/mmorris35/devplan-mcp-server/main/icon.svg"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/devplan_mcp"]
 
 [tool.ruff]
 line-length = 100
