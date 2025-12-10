@@ -7,19 +7,7 @@ name = "devplan-mcp"
 version = "0.1.0"
 description = "MCP server for ClaudeCode-DevPlanBuilder - generate development plans via Model Context Protocol"
 readme = "README.md"
-license = "MIT"
 requires-python = ">=3.12"
-authors = [
-    { name = "Mike Morris", email = "mike@helladynamic.com" }
-]
-keywords = ["mcp", "claude", "development", "planning", "ai", "smithery"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-]
 dependencies = [
     "mcp>=1.15.0",
     "smithery>=0.4.2",
@@ -28,41 +16,9 @@ dependencies = [
     "httpx>=0.27.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "ruff>=0.4.0",
-    "mypy>=1.10.0",
-]
-
 [project.scripts]
-devplan-mcp = "devplan_mcp.server:main"
 dev = "smithery.cli.dev:main"
 playground = "smithery.cli.playground:main"
 
 [tool.smithery]
 server = "devplan_mcp.server_minimal:create_server"
-name = "DevPlan"
-icon = "https://raw.githubusercontent.com/mmorris35/devplan-mcp-server/main/icon.svg"
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]  # Line length handled flexibly for templates
-
-[tool.ruff.lint.per-file-ignores]
-"src/devplan_mcp/templates.py" = ["E501"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
