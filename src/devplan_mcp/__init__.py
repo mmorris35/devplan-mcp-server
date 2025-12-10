@@ -7,6 +7,6 @@ This package exposes the ClaudeCode-DevPlanBuilder functionality as MCP tools.
 __version__ = "0.1.0"
 __author__ = "Mike Morris"
 
-from devplan_mcp.server import create_server, mcp
+from devplan_mcp.server import create_server
 
-__all__ = ["mcp", "create_server"]
+__all__ = ["create_server"]
