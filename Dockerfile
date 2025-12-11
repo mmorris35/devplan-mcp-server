@@ -27,5 +27,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Reset the entrypoint
 ENTRYPOINT []
 
-# Run smithery start with 0.0.0.0 binding for container networking
-CMD ["python", "-m", "smithery.cli.start", "--host", "0.0.0.0", "--port", "8081"]
+# Run the server directly
+CMD ["python", "main.py"]
