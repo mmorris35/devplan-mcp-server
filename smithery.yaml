@@ -4,7 +4,3 @@ build:
   dockerBuildPath: "."
 startCommand:
   type: "http"
-  configSchema:
-    type: "object"
-    properties: {}
-    required: []
