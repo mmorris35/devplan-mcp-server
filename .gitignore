@@ -10,7 +10,6 @@ wheels/
 .venv
 
 # locks
-uv.lock
 poetry.lock
 
 # IDE
