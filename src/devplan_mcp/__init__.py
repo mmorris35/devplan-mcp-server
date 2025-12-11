@@ -1,1 +1,0 @@
-# DevPlan MCP Server Package
