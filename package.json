@@ -1,0 +1,24 @@
+{
+  "name": "devplan-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for generating development plans",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mmorris35/devplan-mcp-server.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "agents": "^0.2.31",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wrangler": "^4.54.0"
+  }
+}
