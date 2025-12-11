@@ -25,6 +25,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Reset the entrypoint and run the application
+# Set transport mode to HTTP and port to 8080 as required by Smithery proxy
+ENV TRANSPORT=http
+ENV PORT=8080
+EXPOSE 8080
+
+# Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
-CMD ["python", "main.py"]
+
+# Run the application directly using the venv Python
+CMD ["python", "src/main.py"]
