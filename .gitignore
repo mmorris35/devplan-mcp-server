@@ -23,3 +23,13 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+# Node.js
+node_modules/
+
+# Wrangler
+.wrangler/
+
+# Environment
+.env
+.dev.vars

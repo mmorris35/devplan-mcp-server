@@ -1,0 +1,12 @@
+name = "devplan-mcp-server"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "DevPlanMCP"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DevPlanMCP"]
