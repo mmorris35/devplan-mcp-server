@@ -5,5 +5,5 @@ description = "MCP server for generating development plans"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp[cli]>=1.12.4",
+    "mcp[cli]==1.12.4",
 ]
