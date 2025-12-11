@@ -20,8 +20,12 @@ RUN uv sync --no-dev
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Set PORT for Smithery
+ENV PORT=8081
+EXPOSE 8081
+
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Run using smithery's start command with correct host
-CMD ["python", "-m", "smithery.cli.start", "--host", "0.0.0.0", "--port", "8081"]
+# Run the server directly
+CMD ["python", "-m", "devplan_mcp.main"]
