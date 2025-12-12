@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { z } from "zod";
 
+import { addRateLimitHeaders, unauthorizedResponse, validateRequest } from "./auth";
 import {
 	createBrief,
 	generateClaudeMd,
@@ -12,6 +13,14 @@ import {
 	validatePlan,
 } from "./generators";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
+
+// Extend Env interface for our bindings
+interface Env {
+	AUTH_ENABLED: string;
+	FREE_TIER_LIMIT: string;
+	DEVPLAN_KV: KVNamespace;
+	MCP_OBJECT: DurableObjectNamespace;
+}
 
 export class DevPlanMCP extends McpAgent {
 	server = new McpServer({
@@ -50,10 +59,12 @@ export class DevPlanMCP extends McpAgent {
 					})
 					.optional()
 					.describe("Technology preferences"),
-				timeline: z.string().optional().describe("Project timeline"),
+				timeline: z.string().optional().describe("Project timeline (e.g., '2 weeks')"),
+				team_size: z.number().optional().describe("Number of developers (default: 1)"),
 				constraints: z.array(z.string()).optional().describe("Constraints/requirements"),
+				nice_to_have: z.array(z.string()).optional().describe("Nice-to-have features for v2"),
 			},
-			async ({ name, project_type, goal, target_users, features, tech_stack, timeline, constraints }) => {
+			async ({ name, project_type, goal, target_users, features, tech_stack, timeline, team_size, constraints, nice_to_have }) => {
 				const brief = createBrief({
 					name,
 					projectType: project_type,
@@ -67,10 +78,17 @@ export class DevPlanMCP extends McpAgent {
 							}
 						: undefined,
 					timeline,
+					teamSize: team_size,
 					constraints,
+					niceToHave: nice_to_have,
 				});
 				return {
-					content: [{ type: "text", text: brief }],
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}`,
+						},
+					],
 				};
 			}
 		);
@@ -104,7 +122,12 @@ export class DevPlanMCP extends McpAgent {
 			async ({ brief_content }) => {
 				const plan = generatePlan(brief_content);
 				return {
-					content: [{ type: "text", text: plan }],
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Write the following content to DEVELOPMENT_PLAN.md in the project root:\n\n${plan}`,
+						},
+					],
 				};
 			}
 		);
@@ -120,7 +143,12 @@ export class DevPlanMCP extends McpAgent {
 			async ({ brief_content, language, test_coverage }) => {
 				const claudeMd = generateClaudeMd(brief_content, language, test_coverage);
 				return {
-					content: [{ type: "text", text: claudeMd }],
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}`,
+						},
+					],
 				};
 			}
 		);
@@ -190,7 +218,12 @@ export class DevPlanMCP extends McpAgent {
 			async ({ plan_content, subtask_id, completion_notes }) => {
 				const updated = updateProgress(plan_content, subtask_id, completion_notes);
 				return {
-					content: [{ type: "text", text: updated }],
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Update DEVELOPMENT_PLAN.md with the following content:\n\n${updated}`,
+						},
+					],
 				};
 			}
 		);
@@ -198,19 +231,46 @@ export class DevPlanMCP extends McpAgent {
 }
 
 export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
 
-		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-			return DevPlanMCP.serveSSE("/sse").fetch(request, env, ctx);
+		// Health check endpoint - no auth required
+		if (url.pathname === "/" || url.pathname === "/health") {
+			return new Response(
+				JSON.stringify({
+					name: "DevPlan MCP Server",
+					version: "1.0.0",
+					status: "healthy",
+					auth: env.AUTH_ENABLED === "true" ? "enabled" : "disabled",
+					docs: "https://github.com/mmorris35/devplan-mcp-server",
+				}),
+				{
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}
+			);
 		}
 
-		if (url.pathname === "/mcp") {
-			return DevPlanMCP.serve("/mcp").fetch(request, env, ctx);
+		// MCP endpoints - apply auth middleware
+		if (url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp") {
+			// Validate API key and rate limits (passes through if AUTH_ENABLED=false)
+			const authResult = await validateRequest(request, env);
+			if (!authResult.authorized) {
+				return unauthorizedResponse(authResult.error || "Unauthorized");
+			}
+
+			// Route to appropriate handler
+			let response: Response;
+			if (url.pathname === "/sse" || url.pathname === "/sse/message") {
+				response = await DevPlanMCP.serveSSE("/sse").fetch(request, env, ctx);
+			} else {
+				response = await DevPlanMCP.serve("/mcp").fetch(request, env, ctx);
+			}
+
+			// Add rate limit headers to response
+			return addRateLimitHeaders(response, authResult);
 		}
 
-		return new Response("DevPlan MCP Server - Transform project ideas into development plans", {
-			status: 200,
-		});
+		return new Response("Not Found", { status: 404 });
 	},
 };
