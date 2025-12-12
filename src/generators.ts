@@ -1561,6 +1561,8 @@ function generateFeaturePhases(brief: ProjectBrief): string {
 			? impl.techDecisions.map((t) => `- ${t}`).join("\n")
 			: `- Follow project conventions established in Phase 0\n- Maintain consistency with existing codebase patterns\n- Prioritize readability and maintainability`;
 		const techDecisions = `\n**Technology Decisions**:\n${techDecisionsContent}\n`;
+		// Code guidance with implementation examples
+		const codeGuidance = impl.codeGuidance ? `\n**Implementation Guide**:\n${impl.codeGuidance}\n` : "";
 
 		// Generate prerequisite reference to previous subtask (marked [x] as it must be complete)
 		const prerequisite = `- [x] ${previousSubtaskId}: ${previousSubtaskTitle}`;
@@ -1593,7 +1595,7 @@ ${filesToModify}
 
 **Success Criteria**:
 ${successCriteria}
-
+${codeGuidance}
 ---
 
 **Completion Notes**:
