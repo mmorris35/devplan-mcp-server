@@ -32,12 +32,13 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 1: devplan_interview_questions
 		this.server.tool(
 			"devplan_interview_questions",
+			"STEP 1: Get the interview questions to ask the user. You MUST call this tool first and actually ASK the user each question one by one, waiting for their responses. Do NOT skip ahead or make assumptions about their answers. Only after collecting all answers should you proceed to devplan_create_brief.",
 			{},
 			async () => ({
 				content: [
 					{
 						type: "text",
-						text: JSON.stringify(INTERVIEW_QUESTIONS, null, 2),
+						text: `IMPORTANT: Ask the user each of these questions ONE AT A TIME and wait for their response before asking the next question. Do NOT proceed to create_brief until you have collected answers to all required questions.\n\n${JSON.stringify(INTERVIEW_QUESTIONS, null, 2)}`,
 					},
 				],
 			})
@@ -46,6 +47,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 2: devplan_create_brief
 		this.server.tool(
 			"devplan_create_brief",
+			"STEP 2: Create a project brief ONLY after you have asked the user all interview questions and received their answers. Do NOT call this tool until you have actually interviewed the user.",
 			{
 				name: z.string().describe("Project name"),
 				project_type: z.string().describe("Project type: cli, web_app, api, or library"),
@@ -96,6 +98,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 3: devplan_parse_brief
 		this.server.tool(
 			"devplan_parse_brief",
+			"Parse an existing PROJECT_BRIEF.md file to extract structured data. Use this if a brief already exists.",
 			{
 				content: z.string().describe("Full PROJECT_BRIEF.md content"),
 				response_format: z.enum(["json", "markdown"]).default("json").describe("Output format"),
@@ -115,6 +118,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 4: devplan_generate_plan
 		this.server.tool(
 			"devplan_generate_plan",
+			"STEP 3: Generate a detailed DEVELOPMENT_PLAN.md from a project brief. Call this AFTER creating PROJECT_BRIEF.md. The output must be written to DEVELOPMENT_PLAN.md.",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
@@ -135,6 +139,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 5: devplan_generate_claude_md
 		this.server.tool(
 			"devplan_generate_claude_md",
+			"STEP 4: Generate CLAUDE.md with project rules and session checklists. Call this AFTER creating DEVELOPMENT_PLAN.md. The output must be written to CLAUDE.md.",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				language: z.string().default("python").describe("Primary language"),
@@ -156,6 +161,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 6: devplan_list_templates
 		this.server.tool(
 			"devplan_list_templates",
+			"List available project templates (cli, web_app, api, library). Use this to show the user what project types are supported.",
 			{
 				project_type: z.string().optional().describe("Filter by type"),
 				response_format: z.enum(["json", "markdown"]).default("json").describe("Output format"),
@@ -180,6 +186,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 7: devplan_validate_plan
 		this.server.tool(
 			"devplan_validate_plan",
+			"Validate a DEVELOPMENT_PLAN.md file for required sections and structure. Use this to check if a plan is complete.",
 			{
 				content: z.string().describe("DEVELOPMENT_PLAN.md content"),
 				strict: z.boolean().default(false).describe("Treat warnings as errors"),
@@ -195,6 +202,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 8: devplan_get_subtask
 		this.server.tool(
 			"devplan_get_subtask",
+			"Get details for a specific subtask by ID (e.g., '0.1.1'). Use during implementation to retrieve subtask requirements.",
 			{
 				plan_content: z.string().describe("DEVELOPMENT_PLAN.md content"),
 				subtask_id: z.string().describe("ID in format X.Y.Z"),
@@ -210,6 +218,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 9: devplan_update_progress
 		this.server.tool(
 			"devplan_update_progress",
+			"Mark a subtask as complete and add completion notes. Use after finishing a subtask to update DEVELOPMENT_PLAN.md.",
 			{
 				plan_content: z.string().describe("Current plan content"),
 				subtask_id: z.string().describe("ID to mark complete"),
