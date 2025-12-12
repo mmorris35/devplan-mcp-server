@@ -29,16 +29,62 @@ export class DevPlanMCP extends McpAgent {
 	});
 
 	async init() {
-		// Tool 1: devplan_interview_questions
+		// Tool 0: devplan_start - The main entry point
 		this.server.tool(
-			"devplan_interview_questions",
-			"STEP 1: Get the interview questions to ask the user. You MUST call this tool first and actually ASK the user each question one by one, waiting for their responses. Do NOT skip ahead or make assumptions about their answers. Only after collecting all answers should you proceed to devplan_create_brief.",
+			"devplan_start",
+			"START HERE: Initialize a new project using the DevPlan methodology. This tool provides instructions for building a comprehensive development plan that Claude Code can execute step-by-step.",
 			{},
 			async () => ({
 				content: [
 					{
 						type: "text",
-						text: `IMPORTANT: Ask the user each of these questions ONE AT A TIME and wait for their response before asking the next question. Do NOT proceed to create_brief until you have collected answers to all required questions.\n\n${JSON.stringify(INTERVIEW_QUESTIONS, null, 2)}`,
+						text: `# DevPlan Project Builder
+
+You are about to create a development plan using the ClaudeCode-DevPlanBuilder methodology.
+
+## IMPORTANT: Read the methodology first
+
+Before proceeding, you MUST read and understand the full methodology from the original repository:
+
+1. **Read the README**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/README.md
+2. **Read PROMPT_SEQUENCE.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/PROMPT_SEQUENCE.md
+3. **Study the example DEVELOPMENT_PLAN.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
+4. **Study the example claude.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md
+
+## Your Task
+
+After reading those files, help the user create:
+1. **PROJECT_BRIEF.md** - Capture their project requirements through interview
+2. **DEVELOPMENT_PLAN.md** - A detailed, paint-by-numbers development plan following the exact format from the example
+3. **CLAUDE.md** - Project rules following the exact format from the example
+
+## Key Principles from the Methodology
+
+- Each subtask must be completable in a single 2-4 hour session
+- 3-7 deliverables per subtask with explicit checkboxes
+- Git branching at TASK level (not subtask) - one branch per task, squash merge when complete
+- Prerequisites reference specific subtask IDs
+- Completion notes template for every subtask
+- Success criteria that are testable and objective
+
+## Next Step
+
+Fetch and read the README.md from the repository above, then interview the user about their project idea.`,
+					},
+				],
+			})
+		);
+
+		// Tool 1: devplan_interview_questions
+		this.server.tool(
+			"devplan_interview_questions",
+			"Get interview questions to ask the user about their project. Ask these ONE AT A TIME, waiting for responses.",
+			{},
+			async () => ({
+				content: [
+					{
+						type: "text",
+						text: `Ask the user each of these questions ONE AT A TIME. Wait for their response before asking the next question.\n\n${JSON.stringify(INTERVIEW_QUESTIONS, null, 2)}`,
 					},
 				],
 			})
@@ -47,7 +93,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 2: devplan_create_brief
 		this.server.tool(
 			"devplan_create_brief",
-			"STEP 2: Create a project brief ONLY after you have asked the user all interview questions and received their answers. Do NOT call this tool until you have actually interviewed the user.",
+			"Create a PROJECT_BRIEF.md after interviewing the user. This captures their requirements in a structured format.",
 			{
 				name: z.string().describe("Project name"),
 				project_type: z.string().describe("Project type: cli, web_app, api, or library"),
@@ -88,7 +134,9 @@ export class DevPlanMCP extends McpAgent {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}\n\n---\nNEXT STEP: Now call devplan_generate_plan with this brief content to create DEVELOPMENT_PLAN.md.`,
+							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}\n\n---\nNEXT STEP: Now create DEVELOPMENT_PLAN.md following the exact format from https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
+
+You can use devplan_generate_plan as a starting point, but you MUST enhance it to match the quality and detail level of the example.`,
 						},
 					],
 				};
@@ -118,7 +166,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 4: devplan_generate_plan
 		this.server.tool(
 			"devplan_generate_plan",
-			"STEP 3: Generate a detailed DEVELOPMENT_PLAN.md from a project brief. Call this AFTER creating PROJECT_BRIEF.md. The output must be written to DEVELOPMENT_PLAN.md.",
+			"Generate a DEVELOPMENT_PLAN.md scaffold. Use this as a starting point, then enhance it to match the example at https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
@@ -129,7 +177,17 @@ export class DevPlanMCP extends McpAgent {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to DEVELOPMENT_PLAN.md in the project root:\n\n${plan}\n\n---\nNEXT STEP: Now call devplan_generate_claude_md to create CLAUDE.md with project rules and session checklists.`,
+							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${plan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
+
+Key things to verify/add:
+- Each subtask has 3-7 specific deliverables with checkboxes
+- Each subtask has testable success criteria
+- Git instructions at the TASK level (not subtask)
+- Prerequisites reference specific subtask IDs like "- [x] 1.2.1: Previous Subtask Title"
+- Completion notes template for every subtask
+- Code examples where helpful
+
+NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md`,
 						},
 					],
 				};
@@ -139,7 +197,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 5: devplan_generate_claude_md
 		this.server.tool(
 			"devplan_generate_claude_md",
-			"STEP 4: Generate CLAUDE.md with project rules and session checklists. Call this AFTER creating DEVELOPMENT_PLAN.md. The output must be written to CLAUDE.md.",
+			"Generate a CLAUDE.md scaffold with project rules and session checklists. Use this as a starting point, then enhance it to match https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				language: z.string().default("python").describe("Primary language"),
@@ -151,7 +209,7 @@ export class DevPlanMCP extends McpAgent {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}`,
+							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality and structure of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md\n\nKey things to verify/add:\n- All 10 numbered sections present\n- Session checklists (Starting/Ending) with specific items\n- Git conventions with branch naming patterns\n- Code standards specific to the project language\n- Testing requirements with coverage thresholds\n- Completion notes template with line count tracking`,
 						},
 					],
 				};
