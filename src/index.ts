@@ -88,7 +88,7 @@ export class DevPlanMCP extends McpAgent {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}`,
+							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}\n\n---\nNEXT STEP: Now call devplan_generate_plan with this brief content to create DEVELOPMENT_PLAN.md.`,
 						},
 					],
 				};
@@ -129,7 +129,7 @@ export class DevPlanMCP extends McpAgent {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to DEVELOPMENT_PLAN.md in the project root:\n\n${plan}`,
+							text: `ACTION REQUIRED: Write the following content to DEVELOPMENT_PLAN.md in the project root:\n\n${plan}\n\n---\nNEXT STEP: Now call devplan_generate_claude_md to create CLAUDE.md with project rules and session checklists.`,
 						},
 					],
 				};
