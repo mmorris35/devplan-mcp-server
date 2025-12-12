@@ -3,9 +3,8 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple.svg)](https://modelcontextprotocol.io)
-[![Smithery](https://img.shields.io/badge/Smithery-Published-green.svg)](https://smithery.ai/server/@mmorris35/devplan-mcp-server)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
 
 **Transform project ideas into comprehensive, paint-by-numbers development plans**
 
@@ -68,23 +67,13 @@ flowchart LR
 
 ## 🚀 Quick Start
 
-### Via Smithery (Recommended)
+### Claude Code (Recommended)
 
 ```bash
-# Install from Smithery registry
-npx @anthropic/mcp install @mmorris35/devplan-mcp-server
+claude mcp add devplan --transport sse https://devplan-mcp-server.mike-c63.workers.dev/sse
 ```
 
-### Manual Installation
-
-```bash
-git clone https://github.com/mmorris35/devplan-mcp-server.git
-cd devplan-mcp-server
-python -m venv venv && source venv/bin/activate
-pip install -e ".[dev]"
-```
-
-### Claude Code Configuration
+### Manual Configuration
 
 Add to `~/.claude/mcp.json`:
 
@@ -92,8 +81,8 @@ Add to `~/.claude/mcp.json`:
 {
   "mcpServers": {
     "devplan": {
-      "command": "devplan-mcp",
-      "args": []
+      "type": "sse",
+      "url": "https://devplan-mcp-server.mike-c63.workers.dev/sse"
     }
   }
 }
