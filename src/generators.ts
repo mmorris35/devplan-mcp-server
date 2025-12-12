@@ -361,6 +361,8 @@ ${successCriteria}
 
 					return `### Task ${task.id}: ${task.title}
 
+**Git**: Create branch \`feature/${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.
+
 ${subtasksSection}`;
 				})
 				.join("\n\n");
@@ -1606,6 +1608,8 @@ function generateFeaturePhases(brief: ProjectBrief): string {
 
 ### Task ${phaseNum}.1: Core Implementation
 
+**Git**: Create branch \`feature/${phaseNum}-1-${featureId}\` when starting. Commit after subtask. Squash merge to main when task complete.
+
 **Subtask ${phaseNum}.1.1: ${featureShortTitle} (Single Session)**
 
 **Prerequisites**:
@@ -1709,138 +1713,308 @@ export function generateClaudeMd(
 ): string {
 	const brief = parseBrief(briefContent);
 	const isPython = language === "python";
+	const projectUnderscore = brief.projectName.toLowerCase().replace(/-/g, "_");
 
 	return `# CLAUDE.md - Project Rules for ${brief.projectName}
 
-## Project Overview
-
-**Type**: ${brief.projectType}
-**Goal**: ${brief.primaryGoal}
-**Language**: ${language}
+> This document defines HOW Claude Code should work on ${brief.projectName}.
+> Read at the start of every session to maintain consistency.
 
 ## Core Operating Principles
 
-1. **Single-Session Execution**: Complete the assigned subtask entirely within one session. Never leave work partially done.
+### 1. Single Session Execution
+- ✅ Complete the ENTIRE subtask in this session
+- ✅ End every session with a git commit
+- ❌ If blocked, document why and mark as BLOCKED
 
-2. **Read-Before-Acting Protocol**: Always read DEVELOPMENT_PLAN.md and this file completely before starting any work.
+### 2. Read Before Acting
+**Every session must begin with:**
+1. Read DEVELOPMENT_PLAN.md completely
+2. Locate the specific subtask ID from the prompt
+3. Verify prerequisites are marked \`[x]\` complete
+4. Read completion notes from prerequisites for context
 
-3. **File Management**: Create files in the locations specified by the plan. Do not create files outside the project structure.
+### 3. File Management
 
-4. **Testing Requirements**: Write tests for all new code. Achieve minimum ${testCoverage}% coverage.
+**Project Structure:**
+\`\`\`
+${brief.projectName}/
+├── ${projectUnderscore}/              # Main package
+│   ├── __init__.py
+│   ├── cli.py                   # Click CLI commands
+│   └── ...                      # Feature modules
+├── tests/
+│   ├── __init__.py
+│   ├── test_*.py               # Test modules
+│   └── fixtures/               # Test data
+├── pyproject.toml              # Project metadata
+├── README.md
+├── CLAUDE.md                   # This file
+└── DEVELOPMENT_PLAN.md         # Development roadmap
+\`\`\`
 
-5. **Completion Protocol**: Update DEVELOPMENT_PLAN.md completion notes, mark checkboxes \`[x]\`, and commit before ending session.
+**Creating Files:**
+- Use exact paths specified in subtask
+- Add proper module docstrings
+- Include type hints on all functions
 
-## Starting a Session Checklist
+**Modifying Files:**
+- Only modify files listed in subtask
+- Preserve existing functionality
+- Update related tests
 
-Before beginning work on subtask X.Y.Z:
-- [ ] Read this entire file (CLAUDE.md)
-- [ ] Read DEVELOPMENT_PLAN.md completely
-- [ ] Locate subtask X.Y.Z in the plan
-- [ ] Verify all prerequisites are marked \`[x]\` complete
-- [ ] Review completion notes from prerequisite subtasks
-- [ ] Create feature branch if starting new task: \`git checkout -b feature/X-Y-description\`
-- [ ] Understand the deliverables and success criteria
+### 4. Testing Requirements
 
-## Ending a Session Checklist
+**Unit Tests:**
+- Write tests for EVERY new function/class
+- Place in \`tests/\` with \`test_\` prefix
+- Minimum coverage: ${testCoverage}% overall
+- Test success, failure, and edge cases
 
-Before finishing work on subtask X.Y.Z:
-- [ ] All deliverables completed and marked \`[x]\`
-- [ ] All success criteria met and marked \`[x]\`
-- [ ] Tests written and passing: \`${isPython ? "pytest tests/ -v --cov" : "npm test"}\`
-- [ ] Linting passes: \`${isPython ? "ruff check ." : "npm run lint"}\`
-- [ ] Type checking passes: \`${isPython ? `mypy ${brief.projectName.toLowerCase().replace(/-/g, "_")}/` : "npm run typecheck"}\`
-- [ ] Completion notes filled in with actual results
-- [ ] Changes committed: \`git commit -m "feat(module): description"\`
-- [ ] If task complete (all subtasks done): squash merge to main
-
-## Code Standards
-
-### Style
-- Follow ${isPython ? "PEP 8" : "ESLint"} conventions
-- Use ${isPython ? "ruff" : "prettier"} for formatting
-- Maximum line length: 100 characters
-
-### Type Safety
-- ${isPython ? "Use type hints on all function signatures: `def func(x: int) -> str:`" : "Use TypeScript strict mode"}
-- No \`any\` types without explicit justification
-- Document complex types with comments
-
-### Testing
-- Minimum test coverage: ${testCoverage}%
-- Write tests before or alongside implementation
-- Use descriptive test names: \`test_<function>_<scenario>_<expected>\`
-- Test success cases, failure cases, and edge cases
-
-### Documentation
-- All public functions must have ${isPython ? "Google-style docstrings" : "JSDoc comments"}
-- Include usage examples in docstrings
-- Keep README.md up to date
-
-### Prohibited Patterns
-${
-	isPython
-		? `- No \`print()\` statements (use \`click.echo()\` or logging)
-- No bare \`except:\` clauses (catch specific exceptions)
-- No \`exit()\` calls (raise exceptions instead)
-- No global variables (use classes or function parameters)`
-		: `- No \`console.log()\` in production code (use proper logging)
-- No \`any\` type assertions without justification
-- No ignoring Promise rejections`
-}
-
-## Git Workflow
-
-### Branch Strategy (TASK level, not subtask)
-- **ONE branch per TASK** (e.g., \`feature/2-1-markdown-parser\`)
-- **Multiple commits** to that branch (one per subtask)
-- **Squash merge** to main when entire TASK is complete
-
-### Branch Naming
-- Format: \`feature/<phase>-<task>-<description>\`
-- Example: \`feature/2-1-markdown-parser\`
-
-### Commit Messages
-- Format: \`<type>(<scope>): <description>\`
-- Types: feat, fix, refactor, test, docs, chore
-- Example: \`feat(parser): implement markdown-to-html conversion\`
-
-## Build Verification (Pre-Commit)
-
-Run these commands before every commit:
+**Running Tests:**
 \`\`\`bash
-${
-	isPython
-		? `# Run tests with coverage
-pytest tests/ -v --cov=${brief.projectName.toLowerCase().replace(/-/g, "_")} --cov-report=term-missing
+${isPython ? `# All tests
+pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing
 
-# Linting
-ruff check .
-ruff format --check .
+# Specific test file
+pytest tests/test_parser.py -v
 
-# Type checking
-mypy ${brief.projectName.toLowerCase().replace(/-/g, "_")}/`
-		: `# Run tests
+# With coverage report
+pytest --cov=${projectUnderscore} --cov-report=html` : `# All tests
 npm test
 
-# Linting
+# With coverage
+npm test -- --coverage`}
+\`\`\`
+
+**Before Every Commit:**
+- [ ] All tests pass
+- [ ] Coverage >${testCoverage}%
+- [ ] Linting passes (${isPython ? "ruff" : "eslint"})
+- [ ] Type checking passes (${isPython ? "mypy" : "tsc"})
+
+### 5. Completion Protocol
+
+**When a subtask is complete:**
+
+1. **Update DEVELOPMENT_PLAN.md** with completion notes:
+\`\`\`markdown
+**Completion Notes:**
+- **Implementation**: Brief description of what was built
+- **Files Created**:
+  - \`${projectUnderscore}/parser.py\` (234 lines)
+  - \`tests/test_parser.py\` (156 lines)
+- **Files Modified**:
+  - \`${projectUnderscore}/__init__.py\` (added parser import)
+- **Tests**: 12 unit tests (85% coverage)
+- **Build**: ✅ Success (all tests pass, linting clean)
+- **Branch**: feature/subtask-X-Y-Z
+- **Notes**: Any deviations, issues, or future work
+\`\`\`
+
+2. **Check all checkboxes** in the subtask (change \`[ ]\` to \`[x]\`)
+
+3. **Git commit** with semantic message:
+\`\`\`bash
+git add .
+git commit -m "feat(parser): Implement markdown parser
+
+- Parse markdown with GFM support
+- Extract all headings and code blocks
+- Add comprehensive tests
+- 85% coverage on parser module"
+\`\`\`
+
+4. **Report completion** with summary
+
+### 6. Technology Stack
+
+${isPython ? `**Tech Stack:**
+- **Language**: Python 3.11+
+- **CLI Framework**: Click 8.1+
+- **Testing**: pytest 7.4+, pytest-cov
+- **Linting**: ruff 0.1+
+- **Type Checking**: mypy 1.7+
+
+**Installing Dependencies:**
+\`\`\`bash
+pip install -e ".[dev]"  # Editable install with dev dependencies
+\`\`\`` : `**Tech Stack:**
+- **Language**: TypeScript/Node.js
+- **Testing**: Jest or Vitest
+- **Linting**: ESLint + Prettier
+- **Type Checking**: TypeScript strict mode
+
+**Installing Dependencies:**
+\`\`\`bash
+npm install
+\`\`\``}
+
+### 7. Error Handling
+
+**If you encounter an error:**
+1. Attempt to fix using project patterns
+2. If blocked, update DEVELOPMENT_PLAN.md:
+   \`\`\`markdown
+   **Completion Notes:**
+   - **Status**: ❌ BLOCKED
+   - **Error**: [Detailed error message]
+   - **Attempted**: [What was tried]
+   - **Root Cause**: [Analysis]
+   - **Suggested Fix**: [What should be done]
+   \`\`\`
+3. Do NOT mark subtask complete if blocked
+4. Do NOT commit broken code
+5. Report immediately
+
+### 8. Code Quality Standards
+
+${isPython ? `**Python Style:**
+- Follow PEP 8
+- Type hints on all functions: \`def func(x: int) -> str:\`
+- Docstrings: Google style
+- Max line length: 100 characters
+- Use \`ruff\` for linting
+- Use \`mypy\` for type checking
+
+**Example Function:**
+\`\`\`python
+def parse_brief(brief_path: Path) -> ProjectBrief:
+    """Parse PROJECT_BRIEF.md file and extract requirements.
+
+    Args:
+        brief_path: Path to PROJECT_BRIEF.md file
+
+    Returns:
+        ProjectBrief object with all extracted fields
+
+    Raises:
+        FileNotFoundError: If brief file doesn't exist
+        ValueError: If brief is malformed or missing required fields
+
+    Example:
+        >>> brief = parse_brief(Path("PROJECT_BRIEF.md"))
+        >>> brief.project_name
+        '${brief.projectName}'
+    """
+    if not brief_path.exists():
+        raise FileNotFoundError(f"Brief file not found: {brief_path}")
+
+    # Implementation...
+\`\`\`
+
+**Imports:**
+- Standard library first
+- Third-party second
+- Local imports last
+- Alphabetical within each group
+
+**Prohibited:**
+- \`print()\` for output (use Click.echo or logging)
+- \`exit()\` (raise exceptions instead)
+- Bare \`except:\` (catch specific exceptions)
+- Global variables (use classes or pass parameters)` : `**TypeScript Style:**
+- Use strict mode
+- Type all function parameters and returns
+- Use interfaces for complex types
+- Max line length: 100 characters
+
+**Prohibited:**
+- \`console.log()\` in production (use proper logging)
+- \`any\` type without explicit justification
+- Ignoring Promise rejections`}
+
+### 9. CLI Design Standards
+
+${isPython ? `**Command Structure:**
+\`\`\`bash
+${brief.projectName.toLowerCase()} <command> [options] [arguments]
+\`\`\`
+
+**All commands must:**
+- Have \`--help\` text with examples
+- Use Click's option validation
+- Provide clear error messages
+- Support \`--verbose\` for debug output
+- Return proper exit codes (0=success, 1=error)
+
+**Example Command:**
+\`\`\`python
+@click.command()
+@click.argument('input_file', type=click.Path(exists=True))
+@click.option('-o', '--output', type=click.Path(), help='Output file path')
+@click.option('--verbose', is_flag=True, help='Enable verbose output')
+def convert(input_file: str, output: str | None, verbose: bool):
+    """Convert markdown file to PDF.
+
+    Example:
+        ${brief.projectName.toLowerCase()} convert README.md -o output.pdf
+    """
+    # Implementation...
+\`\`\`` : `**All commands should:**
+- Have clear help text
+- Validate inputs
+- Provide clear error messages
+- Return proper exit codes`}
+
+### 10. Build Verification
+
+**Before marking subtask complete:**
+
+\`\`\`bash
+${isPython ? `# Linting
+ruff check ${projectUnderscore} tests
+
+# Type checking
+mypy ${projectUnderscore}
+
+# Tests
+pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing
+
+# Build package
+python -m build
+
+# Install and test CLI
+pip install -e .
+${brief.projectName.toLowerCase()} --help` : `# Linting
 npm run lint
 
 # Type checking
-npm run typecheck`
-}
+npm run typecheck
+
+# Tests
+npm test
+
+# Build
+npm run build`}
 \`\`\`
 
-## If Blocked
+**All must pass with no errors.**
 
-If you cannot complete a subtask:
-1. Document the blocker in completion notes with \`❌ BLOCKED\`
-2. Record the exact error message
-3. Explain what was attempted
-4. Analyze the root cause
-5. Suggest a resolution path
-6. Do NOT commit broken code
+## Checklist: Starting a New Session
+
+- [ ] Read DEVELOPMENT_PLAN.md completely
+- [ ] Locate subtask ID from prompt
+- [ ] Verify prerequisites marked \`[x]\`
+- [ ] Read prerequisite completion notes
+- [ ] Understand success criteria
+- [ ] Ready to code!
+
+## Checklist: Ending a Session
+
+- [ ] All subtask checkboxes checked
+- [ ] All tests pass (${isPython ? "pytest" : "npm test"})
+- [ ] Linting clean (${isPython ? "ruff" : "eslint"})
+- [ ] Type checking clean (${isPython ? "mypy" : "tsc"})
+- [ ] Completion notes written
+- [ ] Git commit with semantic message
+- [ ] User notified
 
 ---
+
+**Version**: 1.0
+**Last Updated**: ${new Date().toISOString().split("T")[0]}
+**Project**: ${brief.projectName}
 
 *Generated by DevPlan MCP Server*
 `;
