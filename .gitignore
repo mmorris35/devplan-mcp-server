@@ -33,3 +33,7 @@ node_modules/
 # Environment
 .env
 .dev.vars
+
+# Secrets/tokens
+.mcpregistry_*
+server.json

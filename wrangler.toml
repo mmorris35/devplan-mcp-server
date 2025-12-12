@@ -3,6 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Feature flags and configuration
+[vars]
+AUTH_ENABLED = "false"  # Set to "true" to require API keys
+FREE_TIER_LIMIT = "100"  # Requests per month for free tier
+
+# KV namespace for API keys and usage tracking
+[[kv_namespaces]]
+binding = "DEVPLAN_KV"
+id = "e54b4971273c4ce19ddee2e47a6e50af"
+
 [[durable_objects.bindings]]
 name = "MCP_OBJECT"
 class_name = "DevPlanMCP"
