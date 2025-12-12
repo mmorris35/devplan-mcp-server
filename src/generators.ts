@@ -429,12 +429,39 @@ ${deferredPhasesSection}
 
 ## Git Workflow
 
-- **Branching Strategy**: One branch per task (e.g., \`feature/1-2-${brief.projectName.toLowerCase()}-core\`)
-- **Commit Convention**: Semantic commits (feat:, fix:, refactor:, test:, docs:, chore:)
-- **Merge Strategy**: Squash merge when task is complete
-- **PR Required**: Yes for production branches
+### Branch Strategy
+- **ONE branch per TASK** (e.g., \`feature/1-2-${brief.projectName.toLowerCase()}-core\`)
+- **NO branches for individual subtasks** - subtasks are commits within the task branch
+- Create branch when starting first subtask of a task
+- Branch naming: \`feature/{phase}-{task}-{description}\`
 
-**Key principle**: One branch per task, subtasks commit to it, squash merge upon completion.
+### Commit Strategy
+- **One commit per subtask** with semantic message
+- Format: \`feat(scope): description\` or \`fix(scope): description\`
+- Types: \`feat\`, \`fix\`, \`refactor\`, \`test\`, \`docs\`, \`chore\`
+- Example: \`feat(parser): implement markdown parsing with GFM support\`
+
+### Merge Strategy
+- **Squash merge when task is complete** (all subtasks done)
+- PR required for production branches
+- Delete feature branch after merge
+
+### Workflow Example
+\`\`\`bash
+# Starting Task 1.2 (first subtask is 1.2.1)
+git checkout -b feature/1-2-user-auth
+
+# After completing subtask 1.2.1
+git add . && git commit -m "feat(auth): implement user model"
+
+# After completing subtask 1.2.2
+git add . && git commit -m "feat(auth): add password hashing"
+
+# After completing subtask 1.2.3 (task complete)
+git add . && git commit -m "feat(auth): add login endpoint"
+git push -u origin feature/1-2-user-auth
+# Create PR, squash merge to main, delete branch
+\`\`\`
 
 ---
 
