@@ -5,8 +5,11 @@ import { z } from "zod";
 import { addRateLimitHeaders, unauthorizedResponse, validateRequest } from "./auth";
 import {
 	createBrief,
+	detectTechConflicts,
 	generateClaudeMd,
+	generateExecutorAgent,
 	generatePlan,
+	generateProgressSummary,
 	getSubtask,
 	parseBrief,
 	updateProgress,
@@ -48,15 +51,20 @@ Before proceeding, you MUST read and understand the full methodology from the or
 
 1. **Read the README**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/README.md
 2. **Read PROMPT_SEQUENCE.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/PROMPT_SEQUENCE.md
-3. **Study the example DEVELOPMENT_PLAN.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
-4. **Study the example claude.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md
+3. **Study the example files** in the hello-cli example:
+   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/PROJECT_BRIEF.md
+   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md
+   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/hello-cli-executor.md
+4. **Read the Executor Agent docs**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/docs/EXECUTOR_AGENT.md
 
 ## Your Task
 
-After reading those files, help the user create:
+After reading those files, help the user create these 4 files:
 1. **PROJECT_BRIEF.md** - Capture their project requirements through interview
 2. **DEVELOPMENT_PLAN.md** - A detailed, paint-by-numbers development plan following the exact format from the example
 3. **CLAUDE.md** - Project rules following the exact format from the example
+4. **Executor Agent** (.claude/agents/{project}-executor.md) - A specialized Haiku-powered agent for executing subtasks
 
 ## Key Principles from the Methodology
 
@@ -66,6 +74,8 @@ After reading those files, help the user create:
 - Prerequisites reference specific subtask IDs
 - Completion notes template for every subtask
 - Success criteria that are testable and objective
+- Plans must be "Haiku-executable" - complete code, no inference required
+- **Task Complete section** after each task's subtasks with squash merge checklist
 
 ## Next Step
 
@@ -113,6 +123,11 @@ Fetch and read the README.md from the repository above, then interview the user 
 				nice_to_have: z.array(z.string()).optional().describe("Nice-to-have features for v2"),
 			},
 			async ({ name, project_type, goal, target_users, features, tech_stack, timeline, team_size, constraints, nice_to_have }) => {
+				// Check for tech stack conflicts
+				const techConflicts = tech_stack?.must_use
+					? detectTechConflicts(tech_stack.must_use)
+					: [];
+
 				const brief = createBrief({
 					name,
 					projectType: project_type,
@@ -130,11 +145,16 @@ Fetch and read the README.md from the repository above, then interview the user 
 					constraints,
 					niceToHave: nice_to_have,
 				});
+
+				const warningsSection = techConflicts.length > 0
+					? `\n\n⚠️ **Tech Stack Warnings**:\n${techConflicts.map(w => `- ${w}`).join("\n")}\n\nThese are warnings only - you may proceed if the combination is intentional.`
+					: "";
+
 				return {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}\n\n---\nNEXT STEP: Now create DEVELOPMENT_PLAN.md following the exact format from https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
+							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}${warningsSection}\n\n---\nNEXT STEP: Now create DEVELOPMENT_PLAN.md following the exact format from https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
 
 You can use devplan_generate_plan as a starting point, but you MUST enhance it to match the quality and detail level of the example.`,
 						},
@@ -166,7 +186,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 		// Tool 4: devplan_generate_plan
 		this.server.tool(
 			"devplan_generate_plan",
-			"Generate a DEVELOPMENT_PLAN.md scaffold. Use this as a starting point, then enhance it to match the example at https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md",
+			"Generate a DEVELOPMENT_PLAN.md scaffold. Use this as a starting point, then enhance it to match the example at https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
@@ -177,7 +197,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 					content: [
 						{
 							type: "text",
-							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${plan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/DEVELOPMENT_PLAN.md
+							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${plan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
 
 Key things to verify/add:
 - Each subtask has 3-7 specific deliverables with checkboxes
@@ -185,9 +205,17 @@ Key things to verify/add:
 - Git instructions at the TASK level (not subtask)
 - Prerequisites reference specific subtask IDs like "- [x] 1.2.1: Previous Subtask Title"
 - Completion notes template for every subtask
-- Code examples where helpful
+- Complete, copy-pasteable code blocks (Haiku-executable)
+- **Task Complete section** after each task with squash merge checklist:
+  \`\`\`
+  ### Task X.Y Complete - Squash Merge
+  - [ ] All subtasks complete
+  - [ ] All tests pass
+  - [ ] Squash merge to main: \`git checkout main && git merge --squash feature/X-Y-name\`
+  - [ ] Delete branch: \`git branch -d feature/X-Y-name\`
+  \`\`\`
 
-NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md`,
+NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md`,
 						},
 					],
 				};
@@ -197,7 +225,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 		// Tool 5: devplan_generate_claude_md
 		this.server.tool(
 			"devplan_generate_claude_md",
-			"Generate a CLAUDE.md scaffold with project rules and session checklists. Use this as a starting point, then enhance it to match https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md",
+			"Generate a CLAUDE.md scaffold with project rules and session checklists. Use this as a starting point, then enhance it to match https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				language: z.string().default("python").describe("Primary language"),
@@ -209,7 +237,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality and structure of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/claude.md\n\nKey things to verify/add:\n- All 10 numbered sections present\n- Session checklists (Starting/Ending) with specific items\n- Git conventions with branch naming patterns\n- Code standards specific to the project language\n- Testing requirements with coverage thresholds\n- Completion notes template with line count tracking`,
+							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality and structure of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md\n\nKey things to verify/add:\n- All 10 numbered sections present\n- Session checklists (Starting/Ending) with specific items\n- Git conventions with branch naming patterns\n- Code standards specific to the project language\n- Testing requirements with coverage thresholds\n- Completion notes template with line count tracking\n\nNEXT STEP: Create the executor agent using devplan_generate_executor`,
 						},
 					],
 				};
@@ -291,6 +319,91 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 							text: `ACTION REQUIRED: Update DEVELOPMENT_PLAN.md with the following content:\n\n${updated}`,
 						},
 					],
+				};
+			}
+		);
+
+		// Tool 10: devplan_generate_executor
+		this.server.tool(
+			"devplan_generate_executor",
+			"Generate an executor agent file (.claude/agents/{project}-executor.md). This creates a specialized Haiku-powered agent for executing subtasks with full project context.",
+			{
+				brief_content: z.string().describe("PROJECT_BRIEF.md content or JSON brief"),
+				language: z.string().default("python").describe("Primary language (python or typescript)"),
+			},
+			async ({ brief_content, language }) => {
+				const { content, filePath } = generateExecutorAgent(brief_content, language);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Create the executor agent file at \`${filePath}\`
+
+First, create the directory if it doesn't exist:
+\`\`\`bash
+mkdir -p .claude/agents
+\`\`\`
+
+Then write the following content to \`${filePath}\`:
+
+${content}
+
+---
+IMPORTANT: This executor agent uses \`model: haiku\` because the entire point of the DevPlan methodology is creating plans so detailed that Claude Haiku can execute them mechanically.
+
+To use the executor, invoke it with:
+\`\`\`
+Use the {project}-executor agent to execute subtask X.Y.Z
+\`\`\`
+
+See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/docs/EXECUTOR_AGENT.md for more details.`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 11: devplan_progress_summary
+		this.server.tool(
+			"devplan_progress_summary",
+			"Get a progress summary for a development plan. Shows completion percentage, phase-by-phase progress, next actionable subtask, and recently completed work.",
+			{
+				plan_content: z.string().describe("DEVELOPMENT_PLAN.md content"),
+			},
+			async ({ plan_content }) => {
+				const summary = generateProgressSummary(plan_content);
+
+				// Format as readable markdown
+				const phaseProgressLines = summary.phaseProgress.map(
+					(p) => `  - Phase ${p.id}: ${p.title} - ${p.completed}/${p.total} (${p.percentComplete}%)`
+				).join("\n");
+
+				const recentLines = summary.recentlyCompleted.length > 0
+					? summary.recentlyCompleted.map((s) => `  - ${s.id}: ${s.title}`).join("\n")
+					: "  - None yet";
+
+				const nextAction = summary.nextSubtask
+					? `**Next Subtask**: ${summary.nextSubtask.id} - ${summary.nextSubtask.title}\n\nTo continue, use this prompt:\n\`\`\`\nPlease read CLAUDE.md and DEVELOPMENT_PLAN.md completely, then implement subtask [${summary.nextSubtask.id}], following all rules and marking checkboxes as you complete each item.\n\`\`\``
+					: "**All subtasks complete!** Ready for final review and release.";
+
+				const output = `# Development Plan Progress Summary
+
+## Overall Progress
+- **Phases**: ${summary.stats.phases}
+- **Tasks**: ${summary.stats.tasks}
+- **Subtasks**: ${summary.stats.completedSubtasks}/${summary.stats.subtasks} complete
+- **Progress**: ${summary.stats.percentComplete}%
+
+## Phase Progress
+${phaseProgressLines}
+
+## Recently Completed
+${recentLines}
+
+## ${nextAction}`;
+
+				return {
+					content: [{ type: "text", text: output }],
 				};
 			}
 		);
