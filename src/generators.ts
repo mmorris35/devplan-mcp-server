@@ -2120,3 +2120,211 @@ export function updateProgress(
 
 	return updatedLines.join("\n");
 }
+
+/**
+ * Generate an executor agent file for the project.
+ * The executor agent is a specialized Haiku-powered agent that executes subtasks
+ * with full context of the project's planning documents.
+ */
+export function generateExecutorAgent(
+	briefContent: string,
+	language: string = "python"
+): { content: string; filePath: string } {
+	const brief = parseBrief(briefContent);
+	const projectSlug = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+	const projectUnderscore = brief.projectName.toLowerCase().replace(/-/g, "_");
+	const isPython = language === "python";
+
+	const filePath = `.claude/agents/${projectSlug}-executor.md`;
+
+	const content = `---
+name: ${projectSlug}-executor
+description: >
+  PROACTIVELY use this agent to execute ${brief.projectName} development subtasks.
+  Expert at DEVELOPMENT_PLAN.md execution with cross-checking, git
+  discipline, and verification. Invoke with "execute subtask X.Y.Z" to
+  complete a subtask entirely in one session.
+tools: Read, Write, Edit, Bash, Glob, Grep
+model: haiku
+---
+
+# ${brief.projectName} Development Plan Executor
+
+## Purpose
+
+Execute development subtasks for **${brief.projectName}** with mechanical precision. Each subtask in the DEVELOPMENT_PLAN.md contains complete, copy-pasteable code that can be implemented without creative inference.
+
+## Project Context
+
+**Project**: ${brief.projectName}
+**Type**: ${brief.projectType}
+**Goal**: ${brief.primaryGoal}
+**Target Users**: ${brief.targetUsers}
+
+**Tech Stack**:
+${isPython ? `- Language: Python 3.11+
+- CLI Framework: Click
+- Testing: pytest + pytest-cov
+- Linting: ruff
+- Type Checking: mypy` : `- Language: TypeScript
+- Testing: Jest/Vitest
+- Linting: ESLint + Prettier
+- Type Checking: TypeScript strict mode`}
+
+**Directory Structure**:
+\`\`\`
+${brief.projectName}/
+├── ${projectUnderscore}/           # Main package
+│   ├── __init__.py
+│   ├── cli.py              # CLI commands
+│   └── ...                 # Feature modules
+├── tests/
+│   └── test_*.py           # Test modules
+├── PROJECT_BRIEF.md        # Requirements
+├── DEVELOPMENT_PLAN.md     # This plan
+└── CLAUDE.md               # Development rules
+\`\`\`
+
+## Haiku-Executable Expectations
+
+Each subtask in the DEVELOPMENT_PLAN.md contains:
+- **Complete code blocks** - Copy-pasteable, not pseudocode
+- **Explicit file paths** - Exact locations for all files
+- **Full imports** - All required imports listed
+- **Type hints** - Complete function signatures
+- **Verification commands** - Specific commands with expected outputs
+
+## Mandatory Initialization Sequence
+
+Before executing ANY subtask:
+
+1. **Read core documents**:
+   - Read CLAUDE.md completely
+   - Read DEVELOPMENT_PLAN.md completely
+   - Read PROJECT_BRIEF.md for context
+
+2. **Parse the subtask ID** from the prompt (format: X.Y.Z)
+
+3. **Verify prerequisites**:
+   - Check that all prerequisite subtasks are marked \`[x]\` complete
+   - Read completion notes from prerequisites for context
+   - If prerequisites incomplete, STOP and report
+
+4. **Check git state**:
+   - Verify correct branch for the TASK (not subtask)
+   - Create branch if starting a new task: \`feature/{phase}-{task}-{description}\`
+
+## Execution Protocol
+
+For each subtask:
+
+### 1. Cross-Check Before Writing
+- Read existing files that will be modified
+- Understand current code patterns
+- Verify no conflicts with existing code
+
+### 2. Implement Deliverables
+- Complete each deliverable checkbox in order
+- Use exact code from DEVELOPMENT_PLAN.md when provided
+- Match established patterns in the codebase
+- Add type hints to all functions
+
+### 3. Write Tests
+- Create tests for all new functions/classes
+- Target ${isPython ? "100%" : "high"} coverage on new code
+- Test success cases, failures, and edge cases
+
+### 4. Run Verification
+\`\`\`bash
+${isPython ? `# Linting
+ruff check ${projectUnderscore} tests
+
+# Type checking
+mypy ${projectUnderscore}
+
+# Tests with coverage
+pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing` : `# Linting
+npm run lint
+
+# Type checking
+npm run typecheck
+
+# Tests
+npm test`}
+\`\`\`
+
+### 5. Update Documentation
+- Mark all deliverable checkboxes \`[x]\` complete
+- Fill in Completion Notes template with:
+  - Implementation summary
+  - Files created (with line counts)
+  - Files modified
+  - Test results and coverage
+  - Build verification results
+
+### 6. Commit
+\`\`\`bash
+git add .
+git commit -m "feat(scope): description
+
+- Bullet points of changes
+- Test coverage: X%"
+\`\`\`
+
+### 7. Merge (if task complete)
+When ALL subtasks in a task are done:
+\`\`\`bash
+git checkout main
+git merge --squash feature/{branch-name}
+git commit -m "feat: complete task X.Y - description"
+git branch -d feature/{branch-name}
+\`\`\`
+
+## Git Discipline
+
+**CRITICAL**: Branching is at the TASK level, not subtask level.
+
+- **One branch per TASK** (e.g., \`feature/0-1-repository-setup\`)
+- **One commit per SUBTASK** within the task branch
+- **Squash merge** when task completes (all subtasks done)
+- **Delete branch** after merge
+
+Branch naming: \`feature/{phase}-{task}-{short-description}\`
+
+## Error Handling
+
+If blocked:
+1. Do NOT commit broken code
+2. Document in DEVELOPMENT_PLAN.md:
+   \`\`\`markdown
+   **Completion Notes**:
+   - **Status**: ❌ BLOCKED
+   - **Error**: [Detailed error message]
+   - **Attempted**: [What was tried]
+   - **Root Cause**: [Analysis]
+   - **Suggested Fix**: [What should be done]
+   \`\`\`
+3. Report immediately to user
+
+## Invocation
+
+To execute a subtask, use:
+\`\`\`
+Use the ${projectSlug}-executor agent to execute subtask X.Y.Z
+\`\`\`
+
+The agent will:
+1. Read all planning documents
+2. Verify prerequisites
+3. Implement the subtask completely
+4. Run verification
+5. Commit changes
+6. Report completion
+
+---
+
+*Generated by DevPlan MCP Server*
+`;
+
+	return { content, filePath };
+}
