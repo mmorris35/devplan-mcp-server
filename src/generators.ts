@@ -2032,35 +2032,115 @@ export function validatePlan(content: string, strict: boolean = false): {
 	errors: string[];
 	warnings: string[];
 	suggestions: string[];
+	stats: {
+		phases: number;
+		tasks: number;
+		subtasks: number;
+		completedSubtasks: number;
+		percentComplete: number;
+	};
 } {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const suggestions: string[] = [];
 
 	// Check for required sections
-	if (!content.includes("# DEVELOPMENT_PLAN")) {
-		errors.push("Missing DEVELOPMENT_PLAN header");
+	if (!content.includes("# ") || !content.toLowerCase().includes("development plan")) {
+		errors.push("Missing Development Plan header");
 	}
 
-	if (!content.includes("## Technology Stack")) {
+	if (!content.includes("Technology Stack") && !content.includes("Tech Stack")) {
 		errors.push("Missing Technology Stack section");
 	}
 
-	if (!content.includes("## Development Phases")) {
-		errors.push("Missing Development Phases section");
-	}
-
-	// Check for phases
-	const phaseMatches = content.match(/### Phase \d+:/g);
-	if (!phaseMatches || phaseMatches.length === 0) {
+	// Check for phases (support both ## Phase and ### Phase formats)
+	const phaseMatches = content.match(/##+ Phase \d+/g);
+	const phaseCount = phaseMatches?.length || 0;
+	if (phaseCount === 0) {
 		errors.push("No phases defined in the plan");
-	} else if (phaseMatches.length < 3) {
-		warnings.push(`Only ${phaseMatches.length} phases defined, consider adding more structure`);
+	} else if (phaseCount < 2) {
+		warnings.push(`Only ${phaseCount} phase defined, consider adding more structure`);
 	}
 
 	// Check for Phase 0 Foundation
-	if (!content.includes("Phase 0: Foundation")) {
+	if (!content.includes("Phase 0") || !content.toLowerCase().includes("foundation")) {
 		warnings.push("Phase 0 should be titled 'Foundation'");
+	}
+
+	// Count tasks (Task X.Y pattern)
+	const taskMatches = content.match(/### Task \d+\.\d+/g);
+	const taskCount = taskMatches?.length || 0;
+
+	// Count subtasks (Subtask X.Y.Z pattern or checkbox pattern - [ ] X.Y.Z)
+	const subtaskHeaderMatches = content.match(/\*\*Subtask \d+\.\d+\.\d+/g);
+	const subtaskCheckboxMatches = content.match(/- \[[ x]\] \d+\.\d+\.\d+/g);
+	const subtaskCount = subtaskHeaderMatches?.length || subtaskCheckboxMatches?.length || 0;
+
+	// Count completed subtasks (checkboxes marked [x])
+	const completedMatches = content.match(/- \[x\] \d+\.\d+\.\d+/gi);
+	const completedCount = completedMatches?.length || 0;
+
+	// Calculate progress
+	const percentComplete = subtaskCount > 0 ? Math.round((completedCount / subtaskCount) * 100) : 0;
+
+	// Validate subtask structure
+	const subtaskSections = content.split(/\*\*Subtask \d+\.\d+\.\d+/).slice(1);
+	let subtasksWithIssues = 0;
+
+	for (const section of subtaskSections) {
+		const sectionEnd = section.indexOf("**Subtask") !== -1
+			? section.indexOf("**Subtask")
+			: section.indexOf("### Task") !== -1
+				? section.indexOf("### Task")
+				: section.length;
+		const subtaskContent = section.slice(0, sectionEnd);
+
+		// Check for required subtask sections
+		const hasPrerequisites = subtaskContent.includes("**Prerequisites**");
+		const hasDeliverables = subtaskContent.includes("**Deliverables**");
+		const hasSuccessCriteria = subtaskContent.includes("**Success Criteria**");
+		const hasCompletionNotes = subtaskContent.includes("**Completion Notes**");
+
+		if (!hasPrerequisites || !hasDeliverables || !hasSuccessCriteria || !hasCompletionNotes) {
+			subtasksWithIssues++;
+		}
+
+		// Check deliverables count (should be 3-7)
+		const deliverableMatches = subtaskContent.match(/- \[[ x]\] /g);
+		const deliverableCount = deliverableMatches?.length || 0;
+		if (deliverableCount > 0 && (deliverableCount < 3 || deliverableCount > 7)) {
+			// Only warn, don't error - some subtasks may legitimately have fewer/more
+			if (deliverableCount < 3) {
+				warnings.push(`A subtask has only ${deliverableCount} deliverables (recommended: 3-7)`);
+			}
+		}
+	}
+
+	if (subtasksWithIssues > 0) {
+		warnings.push(`${subtasksWithIssues} subtask(s) missing required sections (Prerequisites, Deliverables, Success Criteria, or Completion Notes)`);
+	}
+
+	// Check for Task Complete sections (squash merge checklists)
+	const taskCompleteMatches = content.match(/Task.*Complete.*Squash/gi);
+	if (taskCount > 0 && (!taskCompleteMatches || taskCompleteMatches.length < taskCount)) {
+		const missing = taskCount - (taskCompleteMatches?.length || 0);
+		warnings.push(`${missing} task(s) missing "Task Complete - Squash Merge" section`);
+	}
+
+	// Validate prerequisite references
+	const prereqPattern = /\[x\] (\d+\.\d+\.\d+)/g;
+	const allSubtaskIds = new Set<string>();
+	const subtaskIdMatches = content.matchAll(/\*\*Subtask (\d+\.\d+\.\d+)/g);
+	for (const match of subtaskIdMatches) {
+		allSubtaskIds.add(match[1]);
+	}
+
+	const prereqMatches = content.matchAll(prereqPattern);
+	for (const match of prereqMatches) {
+		const prereqId = match[1];
+		if (!allSubtaskIds.has(prereqId) && prereqId !== "0.0.0") {
+			warnings.push(`Prerequisite references non-existent subtask: ${prereqId}`);
+		}
 	}
 
 	// Suggestions
@@ -2072,9 +2152,168 @@ export function validatePlan(content: string, strict: boolean = false): {
 		suggestions.push("Consider adding a Progress Tracking section");
 	}
 
+	if (!content.includes("How to Use This Plan")) {
+		suggestions.push("Consider adding a 'How to Use This Plan' section at the top");
+	}
+
+	// Check for code blocks with language tags
+	const codeBlocksTotal = (content.match(/```/g) || []).length / 2;
+	const codeBlocksWithLang = (content.match(/```[a-z]+/g) || []).length;
+	if (codeBlocksTotal > 0 && codeBlocksWithLang < codeBlocksTotal * 0.8) {
+		suggestions.push("Some code blocks are missing language tags for syntax highlighting");
+	}
+
 	const valid = strict ? errors.length === 0 && warnings.length === 0 : errors.length === 0;
 
-	return { valid, errors, warnings, suggestions };
+	return {
+		valid,
+		errors,
+		warnings,
+		suggestions,
+		stats: {
+			phases: phaseCount,
+			tasks: taskCount,
+			subtasks: subtaskCount,
+			completedSubtasks: completedCount,
+			percentComplete,
+		}
+	};
+}
+
+/**
+ * Generate a progress summary from a development plan.
+ * Returns statistics and the next actionable subtask.
+ */
+export function generateProgressSummary(planContent: string): {
+	stats: {
+		phases: number;
+		tasks: number;
+		subtasks: number;
+		completedSubtasks: number;
+		percentComplete: number;
+	};
+	phaseProgress: Array<{
+		id: string;
+		title: string;
+		completed: number;
+		total: number;
+		percentComplete: number;
+	}>;
+	nextSubtask: {
+		id: string;
+		title: string;
+		task: string;
+		phase: string;
+	} | null;
+	recentlyCompleted: Array<{
+		id: string;
+		title: string;
+	}>;
+} {
+	const validation = validatePlan(planContent, false);
+
+	// Parse phase progress
+	const phaseProgress: Array<{
+		id: string;
+		title: string;
+		completed: number;
+		total: number;
+		percentComplete: number;
+	}> = [];
+
+	// Match phase headers and their subtasks
+	const phasePattern = /##+ Phase (\d+):?\s*([^\n]+)/g;
+	const phaseMatches = [...planContent.matchAll(phasePattern)];
+
+	for (let i = 0; i < phaseMatches.length; i++) {
+		const phaseMatch = phaseMatches[i];
+		const phaseId = phaseMatch[1];
+		const phaseTitle = phaseMatch[2].trim();
+		const phaseStart = phaseMatch.index || 0;
+		const phaseEnd = i < phaseMatches.length - 1 ? (phaseMatches[i + 1].index || planContent.length) : planContent.length;
+		const phaseContent = planContent.slice(phaseStart, phaseEnd);
+
+		// Count subtasks in this phase
+		const totalInPhase = (phaseContent.match(/- \[[ x]\] \d+\.\d+\.\d+/g) || []).length;
+		const completedInPhase = (phaseContent.match(/- \[x\] \d+\.\d+\.\d+/gi) || []).length;
+
+		phaseProgress.push({
+			id: phaseId,
+			title: phaseTitle,
+			completed: completedInPhase,
+			total: totalInPhase,
+			percentComplete: totalInPhase > 0 ? Math.round((completedInPhase / totalInPhase) * 100) : 0,
+		});
+	}
+
+	// Find next actionable subtask (first unchecked with completed prerequisites)
+	let nextSubtask: { id: string; title: string; task: string; phase: string } | null = null;
+
+	// Get all subtask checkboxes in order
+	const subtaskCheckboxPattern = /- \[( |x)\] (\d+)\.(\d+)\.(\d+):?\s*([^\n]+)/gi;
+	const allSubtasks = [...planContent.matchAll(subtaskCheckboxPattern)];
+	const completedIds = new Set<string>();
+
+	for (const match of allSubtasks) {
+		const isComplete = match[1].toLowerCase() === 'x';
+		const id = `${match[2]}.${match[3]}.${match[4]}`;
+
+		if (isComplete) {
+			completedIds.add(id);
+		}
+	}
+
+	// Find first incomplete subtask
+	for (const match of allSubtasks) {
+		const isComplete = match[1].toLowerCase() === 'x';
+		if (isComplete) continue;
+
+		const phase = match[2];
+		const task = `${match[2]}.${match[3]}`;
+		const id = `${match[2]}.${match[3]}.${match[4]}`;
+		const title = match[5].trim();
+
+		// Check if this subtask's prerequisites are complete
+		// Look for the subtask section and extract prerequisites
+		const subtaskHeaderPattern = new RegExp(`\\*\\*Subtask ${id.replace(/\./g, '\\.')}[^*]*\\*\\*Prerequisites\\*\\*:\\s*([^*]+)`, 's');
+		const prereqMatch = planContent.match(subtaskHeaderPattern);
+
+		let prerequisitesMet = true;
+		if (prereqMatch) {
+			const prereqSection = prereqMatch[1];
+			const prereqIds = [...prereqSection.matchAll(/\[x\] (\d+\.\d+\.\d+)/g)];
+			for (const prereq of prereqIds) {
+				if (!completedIds.has(prereq[1])) {
+					prerequisitesMet = false;
+					break;
+				}
+			}
+		}
+
+		// First subtask (0.1.1) has no prerequisites
+		if (id === '0.1.1' || prerequisitesMet) {
+			nextSubtask = { id, title, task, phase };
+			break;
+		}
+	}
+
+	// Get recently completed (last 3)
+	const recentlyCompleted: Array<{ id: string; title: string }> = [];
+	const completedSubtasks = allSubtasks.filter(m => m[1].toLowerCase() === 'x');
+	const recent = completedSubtasks.slice(-3).reverse();
+	for (const match of recent) {
+		recentlyCompleted.push({
+			id: `${match[2]}.${match[3]}.${match[4]}`,
+			title: match[5].trim(),
+		});
+	}
+
+	return {
+		stats: validation.stats,
+		phaseProgress,
+		nextSubtask,
+		recentlyCompleted,
+	};
 }
 
 export function getSubtask(

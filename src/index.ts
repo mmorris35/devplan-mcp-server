@@ -8,6 +8,7 @@ import {
 	generateClaudeMd,
 	generateExecutorAgent,
 	generatePlan,
+	generateProgressSummary,
 	getSubtask,
 	parseBrief,
 	updateProgress,
@@ -347,6 +348,51 @@ Use the {project}-executor agent to execute subtask X.Y.Z
 See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/docs/EXECUTOR_AGENT.md for more details.`,
 						},
 					],
+				};
+			}
+		);
+
+		// Tool 11: devplan_progress_summary
+		this.server.tool(
+			"devplan_progress_summary",
+			"Get a progress summary for a development plan. Shows completion percentage, phase-by-phase progress, next actionable subtask, and recently completed work.",
+			{
+				plan_content: z.string().describe("DEVELOPMENT_PLAN.md content"),
+			},
+			async ({ plan_content }) => {
+				const summary = generateProgressSummary(plan_content);
+
+				// Format as readable markdown
+				const phaseProgressLines = summary.phaseProgress.map(
+					(p) => `  - Phase ${p.id}: ${p.title} - ${p.completed}/${p.total} (${p.percentComplete}%)`
+				).join("\n");
+
+				const recentLines = summary.recentlyCompleted.length > 0
+					? summary.recentlyCompleted.map((s) => `  - ${s.id}: ${s.title}`).join("\n")
+					: "  - None yet";
+
+				const nextAction = summary.nextSubtask
+					? `**Next Subtask**: ${summary.nextSubtask.id} - ${summary.nextSubtask.title}\n\nTo continue, use this prompt:\n\`\`\`\nPlease read CLAUDE.md and DEVELOPMENT_PLAN.md completely, then implement subtask [${summary.nextSubtask.id}], following all rules and marking checkboxes as you complete each item.\n\`\`\``
+					: "**All subtasks complete!** Ready for final review and release.";
+
+				const output = `# Development Plan Progress Summary
+
+## Overall Progress
+- **Phases**: ${summary.stats.phases}
+- **Tasks**: ${summary.stats.tasks}
+- **Subtasks**: ${summary.stats.completedSubtasks}/${summary.stats.subtasks} complete
+- **Progress**: ${summary.stats.percentComplete}%
+
+## Phase Progress
+${phaseProgressLines}
+
+## Recently Completed
+${recentLines}
+
+## ${nextAction}`;
+
+				return {
+					content: [{ type: "text", text: output }],
 				};
 			}
 		);
