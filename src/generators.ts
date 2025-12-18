@@ -26,6 +26,105 @@ export interface BriefInput {
 	niceToHave?: string[];
 }
 
+/**
+ * Conflict matrix for detecting incompatible technology choices.
+ * Each entry is [tech1, tech2, reason] where tech1 and tech2 conflict.
+ */
+const TECH_CONFLICTS: Array<[string[], string[], string]> = [
+	// Frontend framework conflicts
+	[["react", "reactjs", "react.js"], ["vue", "vuejs", "vue.js"], "competing frontend frameworks"],
+	[["react", "reactjs", "react.js"], ["angular", "angularjs"], "competing frontend frameworks"],
+	[["vue", "vuejs", "vue.js"], ["angular", "angularjs"], "competing frontend frameworks"],
+	[["react", "reactjs", "react.js"], ["svelte", "sveltekit"], "competing frontend frameworks"],
+	[["vue", "vuejs", "vue.js"], ["svelte", "sveltekit"], "competing frontend frameworks"],
+
+	// Backend framework conflicts (same language)
+	[["express", "expressjs"], ["fastify"], "competing Node.js frameworks"],
+	[["django"], ["flask"], "competing Python web frameworks"],
+	[["django"], ["fastapi"], "competing Python web frameworks"],
+	[["flask"], ["fastapi"], "competing Python web frameworks"],
+	[["spring", "spring boot"], ["quarkus"], "competing Java frameworks"],
+
+	// Testing framework conflicts (same ecosystem)
+	[["pytest"], ["jest", "mocha", "vitest"], "pytest is Python-specific, others are JavaScript"],
+	[["jest"], ["mocha"], "competing JavaScript test frameworks"],
+	[["jest"], ["vitest"], "competing JavaScript test frameworks"],
+	[["unittest"], ["jest", "mocha", "vitest"], "unittest is Python-specific, others are JavaScript"],
+
+	// ORM conflicts (same language)
+	[["sqlalchemy"], ["django orm"], "competing Python ORMs"],
+	[["prisma"], ["typeorm"], "competing Node.js ORMs"],
+	[["prisma"], ["sequelize"], "competing Node.js ORMs"],
+	[["typeorm"], ["sequelize"], "competing Node.js ORMs"],
+
+	// Package manager conflicts
+	[["npm"], ["yarn"], "competing Node.js package managers - choose one"],
+	[["npm"], ["pnpm"], "competing Node.js package managers - choose one"],
+	[["yarn"], ["pnpm"], "competing Node.js package managers - choose one"],
+
+	// Language ecosystem mismatches
+	[["python", "pip", "pytest", "ruff", "mypy"], ["npm", "node", "typescript", "eslint"], "mixing Python and Node.js ecosystems"],
+
+	// CSS framework conflicts
+	[["tailwind", "tailwindcss"], ["bootstrap"], "competing CSS frameworks"],
+	[["tailwind", "tailwindcss"], ["material-ui", "mui"], "Tailwind typically replaces component library styling"],
+
+	// State management conflicts
+	[["redux"], ["mobx"], "competing React state management libraries"],
+	[["redux"], ["zustand"], "competing React state management libraries"],
+	[["vuex"], ["pinia"], "Pinia is the recommended replacement for Vuex"],
+];
+
+/**
+ * Detect conflicts between technologies in a list.
+ * Returns warnings for any incompatible combinations found.
+ */
+export function detectTechConflicts(technologies: string[]): string[] {
+	const warnings: string[] = [];
+	const techLower = technologies.map(t => t.toLowerCase().trim());
+
+	for (const [group1, group2, reason] of TECH_CONFLICTS) {
+		const hasGroup1 = group1.some(tech =>
+			techLower.some(t => t.includes(tech) || tech.includes(t))
+		);
+		const hasGroup2 = group2.some(tech =>
+			techLower.some(t => t.includes(tech) || tech.includes(t))
+		);
+
+		if (hasGroup1 && hasGroup2) {
+			const found1 = techLower.find(t => group1.some(g => t.includes(g) || g.includes(t))) || group1[0];
+			const found2 = techLower.find(t => group2.some(g => t.includes(g) || g.includes(t))) || group2[0];
+			warnings.push(`Tech conflict: '${found1}' and '${found2}' are ${reason}`);
+		}
+	}
+
+	return warnings;
+}
+
+/**
+ * Extract technology names from a development plan's Technology Stack section.
+ */
+export function extractTechFromPlan(content: string): string[] {
+	const technologies: string[] = [];
+
+	// Find Technology Stack section
+	const techStackMatch = content.match(/##\s*Technology Stack\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+	if (!techStackMatch) return technologies;
+
+	const techSection = techStackMatch[1];
+
+	// Extract tech from bullet points like "- **Language**: Python 3.11+"
+	const bulletMatches = techSection.matchAll(/[-*]\s*\*?\*?([^*:]+)\*?\*?:\s*(.+)/g);
+	for (const match of bulletMatches) {
+		const value = match[2].trim();
+		// Split on common separators and add each technology
+		const techs = value.split(/[,\/+]/).map(t => t.trim()).filter(t => t.length > 0);
+		technologies.push(...techs);
+	}
+
+	return technologies;
+}
+
 export function createBrief(input: BriefInput): string {
 	const mustUse = input.techStack?.mustUse?.map((t) => `- ${t}`).join("\n") || "- (none specified)";
 	const cannotUse = input.techStack?.cannotUse?.map((t) => `- ${t}`).join("\n") || "- (none specified)";
@@ -292,6 +391,7 @@ export function generatePlan(briefContent: string): string {
 		.map((phase) => {
 			const tasksSection = phase.tasks
 				.map((task) => {
+					const branchName = `${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
 					const subtasksSection = task.subtasks
 						.map((subtask) => {
 							const deliverables = subtask.deliverables
@@ -361,9 +461,15 @@ ${successCriteria}
 
 					return `### Task ${task.id}: ${task.title}
 
-**Git**: Create branch \`feature/${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.
+**Git**: Create branch \`feature/${branchName}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.
 
-${subtasksSection}`;
+${subtasksSection}
+
+### Task ${task.id} Complete - Squash Merge
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${branchName}\`
+- [ ] Delete branch: \`git branch -d feature/${branchName}\``;
 				})
 				.join("\n\n");
 
@@ -1640,7 +1746,13 @@ ${codeGuidance}
 - **Branch**: feature/${phaseNum}-1-${featureId}
 - **Notes**: (any additional context)
 
----`;
+---
+
+### Task ${phaseNum}.1 Complete - Squash Merge
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${phaseNum}-1-${featureId}\`
+- [ ] Delete branch: \`git branch -d feature/${phaseNum}-1-${featureId}\``;
 	});
 
 	return featurePhases.join("\n\n");
@@ -2052,6 +2164,11 @@ export function validatePlan(content: string, strict: boolean = false): {
 	if (!content.includes("Technology Stack") && !content.includes("Tech Stack")) {
 		errors.push("Missing Technology Stack section");
 	}
+
+	// Check for tech stack conflicts
+	const techStack = extractTechFromPlan(content);
+	const techConflicts = detectTechConflicts(techStack);
+	warnings.push(...techConflicts);
 
 	// Check for phases (support both ## Phase and ### Phase formats)
 	const phaseMatches = content.match(/##+ Phase \d+/g);

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { addRateLimitHeaders, unauthorizedResponse, validateRequest } from "./auth";
 import {
 	createBrief,
+	detectTechConflicts,
 	generateClaudeMd,
 	generateExecutorAgent,
 	generatePlan,
@@ -122,6 +123,11 @@ Fetch and read the README.md from the repository above, then interview the user 
 				nice_to_have: z.array(z.string()).optional().describe("Nice-to-have features for v2"),
 			},
 			async ({ name, project_type, goal, target_users, features, tech_stack, timeline, team_size, constraints, nice_to_have }) => {
+				// Check for tech stack conflicts
+				const techConflicts = tech_stack?.must_use
+					? detectTechConflicts(tech_stack.must_use)
+					: [];
+
 				const brief = createBrief({
 					name,
 					projectType: project_type,
@@ -139,11 +145,16 @@ Fetch and read the README.md from the repository above, then interview the user 
 					constraints,
 					niceToHave: nice_to_have,
 				});
+
+				const warningsSection = techConflicts.length > 0
+					? `\n\n⚠️ **Tech Stack Warnings**:\n${techConflicts.map(w => `- ${w}`).join("\n")}\n\nThese are warnings only - you may proceed if the combination is intentional.`
+					: "";
+
 				return {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}\n\n---\nNEXT STEP: Now create DEVELOPMENT_PLAN.md following the exact format from https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+							text: `ACTION REQUIRED: Write the following content to PROJECT_BRIEF.md in the project root:\n\n${brief}${warningsSection}\n\n---\nNEXT STEP: Now create DEVELOPMENT_PLAN.md following the exact format from https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
 
 You can use devplan_generate_plan as a starting point, but you MUST enhance it to match the quality and detail level of the example.`,
 						},
