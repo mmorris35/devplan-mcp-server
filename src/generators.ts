@@ -2684,3 +2684,235 @@ The agent will:
 
 	return { content, filePath };
 }
+
+/**
+ * Generate a verifier agent file for validating completed applications.
+ * Uses Sonnet for deeper analytical capabilities to "try to break" the app.
+ */
+export function generateVerifierAgent(
+	briefContent: string,
+	language: string = "python"
+): { content: string; filePath: string } {
+	const brief = parseBrief(briefContent);
+	const projectSlug = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+	const isPython = language === "python";
+
+	const filePath = `.claude/agents/${projectSlug}-verifier.md`;
+
+	const content = `---
+name: ${projectSlug}-verifier
+description: >
+  Use this agent to validate the completed ${brief.projectName} application against
+  PROJECT_BRIEF.md requirements. Performs smoke tests, feature verification,
+  edge case testing, and generates a comprehensive verification report.
+tools: Read, Bash, Glob, Grep
+model: sonnet
+---
+
+# ${brief.projectName} Verification Agent
+
+## Purpose
+
+Validate the completed **${brief.projectName}** application using critical analysis. Unlike the executor agent that checks off deliverables, this agent tries to **break the application** and find gaps between requirements and implementation.
+
+## Project Context
+
+**Project**: ${brief.projectName}
+**Type**: ${brief.projectType}
+**Goal**: ${brief.primaryGoal}
+**Target Users**: ${brief.targetUsers}
+
+## Verification Philosophy
+
+| Executor Agent | Verifier Agent |
+|----------------|----------------|
+| Haiku model | Sonnet model |
+| "Check off deliverables" | "Try to break it" |
+| Follows DEVELOPMENT_PLAN.md | Validates against PROJECT_BRIEF.md |
+| Outputs code + commits | Outputs verification report |
+
+## Mandatory Initialization
+
+Before ANY verification:
+
+1. **Read PROJECT_BRIEF.md** completely - this is your source of truth
+2. **Read CLAUDE.md** for project conventions
+3. **Understand the MVP features** - these are what you verify
+4. **Note constraints** - Must Use / Cannot Use technologies
+
+## Verification Checklist
+
+### 1. Smoke Tests
+- [ ] Application starts without errors
+- [ ] Basic commands respond correctly
+- [ ] No crashes on standard input
+- [ ] Help/version flags work (if CLI)
+
+\`\`\`bash
+${isPython ? `# Example smoke tests for Python CLI
+${projectSlug} --version
+${projectSlug} --help
+echo "test input" | ${projectSlug}` : `# Example smoke tests for Node.js
+npm start
+npm run --help`}
+\`\`\`
+
+### 2. Feature Verification
+For EACH feature in PROJECT_BRIEF.md:
+- [ ] Feature exists and is accessible
+- [ ] Feature works as specified
+- [ ] Output matches expected format
+- [ ] Feature handles typical use cases
+
+### 3. Edge Case Testing
+Test boundary conditions the plan may have missed:
+- [ ] Empty input handling
+- [ ] Extremely large input
+- [ ] Invalid/malformed input
+- [ ] Missing required arguments
+- [ ] Invalid file paths (if applicable)
+- [ ] Network failures (if applicable)
+- [ ] Permission errors (if applicable)
+
+### 4. Error Handling
+- [ ] Errors produce helpful messages (not stack traces)
+- [ ] Invalid input is rejected gracefully
+- [ ] Application recovers from non-fatal errors
+- [ ] Exit codes are appropriate (0 success, non-zero failure)
+
+### 5. Non-Functional Requirements
+- [ ] Performance: Reasonable response time
+- [ ] Security: No obvious vulnerabilities (injection, path traversal, etc.)
+- [ ] Documentation: README exists with usage instructions
+- [ ] Tests: Test suite exists and passes
+
+\`\`\`bash
+${isPython ? `# Run full test suite
+pytest tests/ -v --cov --cov-report=term-missing
+
+# Check linting
+ruff check .
+
+# Check types
+mypy ${projectSlug.replace(/-/g, "_")}` : `# Run full test suite
+npm test
+
+# Check linting
+npm run lint
+
+# Check types
+npm run typecheck`}
+\`\`\`
+
+## Verification Report Template
+
+After verification, produce this report:
+
+\`\`\`markdown
+# Verification Report: ${brief.projectName}
+
+## Summary
+- **Status**: PASS / PARTIAL / FAIL
+- **Features Verified**: X/Y
+- **Critical Issues**: N
+- **Warnings**: M
+- **Verification Date**: YYYY-MM-DD
+
+## Smoke Tests
+| Test | Expected | Actual | Status |
+|------|----------|--------|--------|
+| App starts | No errors | ... | ✅/❌ |
+| --help flag | Shows usage | ... | ✅/❌ |
+| --version flag | Shows version | ... | ✅/❌ |
+
+## Feature Verification
+
+### Feature: [Name from PROJECT_BRIEF.md]
+- **Status**: ✅ PASS / ⚠️ PARTIAL / ❌ FAIL
+- **Test**: [What was tested]
+- **Expected**: [What should happen]
+- **Actual**: [What happened]
+- **Notes**: [Observations]
+
+(Repeat for each MVP feature)
+
+## Edge Case Testing
+| Test Case | Input | Expected | Actual | Status |
+|-----------|-------|----------|--------|--------|
+| Empty input | "" | Error message | ... | ✅/❌ |
+| Invalid input | "xyz" | Error message | ... | ✅/❌ |
+| Large input | 10MB file | Handles gracefully | ... | ✅/❌ |
+
+## Error Handling
+| Scenario | Expected Behavior | Actual | Status |
+|----------|-------------------|--------|--------|
+| Missing args | Helpful error | ... | ✅/❌ |
+| Invalid file | File not found msg | ... | ✅/❌ |
+
+## Issues Found
+
+### Critical (Must Fix Before Release)
+1. [Issue description + reproduction steps]
+
+### Warnings (Should Fix)
+1. [Issue description]
+
+### Observations (Nice to Have)
+1. [Suggestion]
+
+## Test Coverage
+- **Lines**: X%
+- **Branches**: Y%
+- **Functions**: Z%
+
+## Recommendations
+1. [Priority recommendation]
+2. [Secondary recommendation]
+
+---
+*Verified by ${projectSlug}-verifier agent*
+\`\`\`
+
+## Issue Resolution Workflow
+
+After generating the report:
+
+1. **Critical issues**: Must be fixed before deployment
+   - Report to user immediately
+   - Use standard Claude conversation for fixes
+
+2. **Warnings**: Should be addressed before release
+   - Can be batched for fixing
+
+3. **Observations**: Nice-to-have improvements
+   - Add to backlog or nice-to-have features
+
+## Re-verification
+
+After fixes are applied:
+- Re-run verification on affected areas
+- If extensive changes, run full verification
+- Update report with new status
+
+## Invocation
+
+To verify the completed application:
+\`\`\`
+Use the ${projectSlug}-verifier agent to validate the application against PROJECT_BRIEF.md
+\`\`\`
+
+The agent will:
+1. Read PROJECT_BRIEF.md for requirements
+2. Run smoke tests
+3. Verify each MVP feature
+4. Test edge cases
+5. Check error handling
+6. Generate verification report
+
+---
+
+*Generated by DevPlan MCP Server*
+`;
+
+	return { content, filePath };
+}

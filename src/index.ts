@@ -10,6 +10,7 @@ import {
 	generateExecutorAgent,
 	generatePlan,
 	generateProgressSummary,
+	generateVerifierAgent,
 	getSubtask,
 	parseBrief,
 	updateProgress,
@@ -363,7 +364,47 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 			}
 		);
 
-		// Tool 11: devplan_progress_summary
+		// Tool 11: devplan_generate_verifier
+		this.server.tool(
+			"devplan_generate_verifier",
+			"Generate a verifier agent file (.claude/agents/{project}-verifier.md). This creates a Sonnet-powered agent for validating completed applications against PROJECT_BRIEF.md requirements.",
+			{
+				brief_content: z.string().describe("PROJECT_BRIEF.md content or JSON brief"),
+				language: z.string().default("python").describe("Primary language (python or typescript)"),
+			},
+			async ({ brief_content, language }) => {
+				const { content, filePath } = generateVerifierAgent(brief_content, language);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `ACTION REQUIRED: Create the verifier agent file at \`${filePath}\`
+
+First, create the directory if it doesn't exist:
+\`\`\`bash
+mkdir -p .claude/agents
+\`\`\`
+
+Then write the following content to \`${filePath}\`:
+
+${content}
+
+---
+IMPORTANT: This verifier agent uses \`model: sonnet\` because verification requires deeper analytical capabilities to "try to break" the application and find gaps.
+
+To use the verifier, invoke it with:
+\`\`\`
+Use the {project}-verifier agent to validate the application against PROJECT_BRIEF.md
+\`\`\`
+
+See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/docs/VERIFIER_AGENT.md for more details.`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 12: devplan_progress_summary
 		this.server.tool(
 			"devplan_progress_summary",
 			"Get a progress summary for a development plan. Shows completion percentage, phase-by-phase progress, next actionable subtask, and recently completed work.",
