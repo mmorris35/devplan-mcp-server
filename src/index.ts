@@ -20,6 +20,7 @@ import {
 	parseBrief,
 	updateProgress,
 	validatePlan,
+	findRelevantLessons,
 } from "./generators";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
 
@@ -198,25 +199,38 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 				template: z.string().optional().describe("Template override"),
 			},
 			async ({ brief_content }) => {
-				const plan = generatePlan(brief_content);
-
-				// Get lessons from KV to include safeguards
+				// Get lessons from KV first - they're used for both:
+				// 1. Injecting into subtask success criteria
+				// 2. Adding safeguards section
 				const env = (this as unknown as { env: Env }).env;
+				let lessons: Lesson[] = [];
 				let lessonsSection = "";
 				let lessonsCount = 0;
+				let injectedCount = 0;
+
 				try {
-					const lessons = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
-					if (lessons && lessons.length > 0) {
+					const storedLessons = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (storedLessons && storedLessons.length > 0) {
+						lessons = storedLessons;
 						const brief = parseBrief(brief_content);
 						const projectType = brief.projectType || "cli";
 						lessonsSection = generateLessonsSafeguards(lessons, projectType);
 						lessonsCount = filterLessonsForProject(lessons, projectType).length;
 					}
 				} catch {
-					// No lessons yet, skip safeguards section
+					// No lessons yet
 				}
 
-				// Insert lessons section after "## How to Use This Plan" section
+				// Generate plan with lessons injected into subtask success criteria
+				const plan = generatePlan(brief_content, lessons.length > 0 ? lessons : undefined);
+
+				// Count how many subtasks got lesson-based criteria (approximate)
+				if (lessons.length > 0) {
+					const lessonMarkers = (plan.match(/\(from lesson:/g) || []).length;
+					injectedCount = lessonMarkers;
+				}
+
+				// Insert safeguards section after "## How to Use This Plan" section
 				let enhancedPlan = plan;
 				if (lessonsSection) {
 					const insertPoint = plan.indexOf("---\n\n## Project Overview");
@@ -229,7 +243,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 				}
 
 				const lessonsNote = lessonsCount > 0
-					? `\n\n📚 **${lessonsCount} lessons learned** have been incorporated as safeguards in this plan.`
+					? `\n\n📚 **${lessonsCount} lessons learned** incorporated: ${injectedCount > 0 ? `${injectedCount} injected into subtask success criteria` : "added as safeguards section"}.`
 					: "";
 
 				return {
@@ -626,6 +640,255 @@ ${info.map(l => formatLesson(l)).join("\n\n")}
 
 				return {
 					content: [{ type: "text", text: sections.join("\n") }],
+				};
+			}
+		);
+
+		// Tool 15: devplan_delete_lesson
+		this.server.tool(
+			"devplan_delete_lesson",
+			"Delete a lesson by ID or pattern. Use this to remove outdated, incorrect, or duplicate lessons.",
+			{
+				lesson_id: z.string().optional().describe("The lesson ID to delete (e.g., 'lesson_1234567890_abc123')"),
+				pattern: z.string().optional().describe("Delete lessons matching this pattern (partial match)"),
+				confirm: z.boolean().default(false).describe("Set to true to actually delete. Without this, only shows what would be deleted."),
+			},
+			async ({ lesson_id, pattern, confirm }) => {
+				if (!lesson_id && !pattern) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: "❌ You must provide either `lesson_id` or `pattern` to identify which lesson(s) to delete.",
+							},
+						],
+					};
+				}
+
+				const env = (this as unknown as { env: Env }).env;
+				let lessons: Lesson[] = [];
+				try {
+					const existing = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (existing) {
+						lessons = existing;
+					}
+				} catch {
+					// No lessons
+				}
+
+				if (lessons.length === 0) {
+					return {
+						content: [{ type: "text", text: "📚 No lessons stored yet." }],
+					};
+				}
+
+				// Find lessons to delete
+				const toDelete = lessons.filter(l => {
+					if (lesson_id) return l.id === lesson_id;
+					if (pattern) return l.pattern.toLowerCase().includes(pattern.toLowerCase()) ||
+						l.issue.toLowerCase().includes(pattern.toLowerCase());
+					return false;
+				});
+
+				if (toDelete.length === 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ No lessons found matching ${lesson_id ? `ID "${lesson_id}"` : `pattern "${pattern}"`}`,
+							},
+						],
+					};
+				}
+
+				if (!confirm) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `⚠️ **Preview: ${toDelete.length} lesson(s) would be deleted**
+
+${toDelete.map(l => formatLesson(l)).join("\n\n")}
+
+---
+To confirm deletion, call again with \`confirm: true\``,
+							},
+						],
+					};
+				}
+
+				// Actually delete
+				const remaining = lessons.filter(l => !toDelete.some(d => d.id === l.id));
+				await env.DEVPLAN_KV.put("lessons", JSON.stringify(remaining));
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `✅ **Deleted ${toDelete.length} lesson(s)**
+
+${toDelete.map(l => `- ${l.pattern}`).join("\n")}
+
+**Remaining lessons**: ${remaining.length}`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 16: devplan_extract_lessons_from_report
+		this.server.tool(
+			"devplan_extract_lessons_from_report",
+			"Parse a verification report and extract suggested lessons. Returns pre-filled lesson data that can be reviewed and saved with devplan_add_lesson.",
+			{
+				report_content: z.string().describe("The full verification report markdown content"),
+				project_type: z.string().optional().describe("Project type to associate with extracted lessons (e.g., 'cli', 'api')"),
+			},
+			async ({ report_content, project_type }) => {
+				const extractedLessons: Array<{
+					issue: string;
+					rootCause: string;
+					fix: string;
+					pattern: string;
+					severity: "critical" | "warning" | "info";
+				}> = [];
+
+				// Parse Critical Issues section
+				const criticalMatch = report_content.match(/###\s*Critical\s*\([^)]*\)|###\s*Critical\s*Issues[^\n]*\n([\s\S]*?)(?=###|## |$)/i);
+				if (criticalMatch) {
+					const section = criticalMatch[1] || criticalMatch[0];
+					const issues = section.match(/^\d+\.\s*(.+)$/gm) || [];
+					for (const issue of issues) {
+						const text = issue.replace(/^\d+\.\s*/, "").trim();
+						if (text && !text.includes("None") && text.length > 5) {
+							extractedLessons.push({
+								issue: text,
+								rootCause: "(needs analysis)",
+								fix: "(needs solution)",
+								pattern: text.split(/[:.–-]/)[0].trim().slice(0, 50),
+								severity: "critical",
+							});
+						}
+					}
+				}
+
+				// Parse Warnings section
+				const warningsMatch = report_content.match(/###\s*Warnings?\s*\([^)]*\)|###\s*Warnings?\s*[^\n]*\n([\s\S]*?)(?=###|## |$)/i);
+				if (warningsMatch) {
+					const section = warningsMatch[1] || warningsMatch[0];
+					const issues = section.match(/^\d+\.\s*(.+)$/gm) || [];
+					for (const issue of issues) {
+						const text = issue.replace(/^\d+\.\s*/, "").trim();
+						if (text && !text.includes("None") && text.length > 5) {
+							extractedLessons.push({
+								issue: text,
+								rootCause: "(needs analysis)",
+								fix: "(needs solution)",
+								pattern: text.split(/[:.–-]/)[0].trim().slice(0, 50),
+								severity: "warning",
+							});
+						}
+					}
+				}
+
+				// Parse Issues Found section (alternative format)
+				const issuesFoundMatch = report_content.match(/##\s*Issues Found\s*\n([\s\S]*?)(?=## |$)/i);
+				if (issuesFoundMatch && extractedLessons.length === 0) {
+					const section = issuesFoundMatch[1];
+					const issues = section.match(/^\d+\.\s*(.+)$/gm) || section.match(/^[-*]\s*(.+)$/gm) || [];
+					for (const issue of issues) {
+						const text = issue.replace(/^[\d\-*]+\.?\s*/, "").trim();
+						if (text && !text.includes("None") && text.length > 5) {
+							extractedLessons.push({
+								issue: text,
+								rootCause: "(needs analysis)",
+								fix: "(needs solution)",
+								pattern: text.split(/[:.–-]/)[0].trim().slice(0, 50),
+								severity: "warning",
+							});
+						}
+					}
+				}
+
+				// Parse failed table rows (Status: ❌)
+				const failedRows = report_content.match(/\|[^|]*\|[^|]*\|[^|]*\|\s*❌\s*\|/g) || [];
+				for (const row of failedRows) {
+					const cells = row.split("|").filter(c => c.trim());
+					if (cells.length >= 1) {
+						const testName = cells[0].trim();
+						if (testName && testName.length > 3) {
+							// Avoid duplicates
+							if (!extractedLessons.some(l => l.pattern.includes(testName.slice(0, 20)))) {
+								extractedLessons.push({
+									issue: `Test failed: ${testName}`,
+									rootCause: "(needs analysis)",
+									fix: "(needs solution)",
+									pattern: `Failed: ${testName.slice(0, 40)}`,
+									severity: "warning",
+								});
+							}
+						}
+					}
+				}
+
+				if (extractedLessons.length === 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `📋 **No issues found in the verification report.**
+
+The report appears to be clean, or the format wasn't recognized.
+
+Expected formats:
+- "### Critical Issues" or "### Critical (Must Fix Before Release)" sections with numbered items
+- "### Warnings" sections with numbered items
+- "## Issues Found" section with bullet points
+- Tables with ❌ status indicators
+
+If issues exist but weren't extracted, you can manually add them with \`devplan_add_lesson\`.`,
+							},
+						],
+					};
+				}
+
+				const projectTypeStr = project_type ? `["${project_type}"]` : "[]";
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `📋 **Extracted ${extractedLessons.length} potential lesson(s) from verification report**
+
+Review each one and add with \`devplan_add_lesson\`:
+
+${extractedLessons.map((l, i) => `---
+### ${i + 1}. ${l.pattern}
+
+**Severity**: ${l.severity}
+**Issue**: ${l.issue}
+**Root Cause**: ${l.rootCause}
+**Fix**: ${l.fix}
+
+\`\`\`json
+{
+  "issue": "${l.issue.replace(/"/g, '\\"')}",
+  "root_cause": "(fill in after analysis)",
+  "fix": "(fill in the solution)",
+  "pattern": "${l.pattern.replace(/"/g, '\\"')}",
+  "project_types": ${projectTypeStr},
+  "severity": "${l.severity}"
+}
+\`\`\``).join("\n\n")}
+
+---
+**Next steps:**
+1. Review each extracted issue
+2. Fill in the root cause and fix for valuable lessons
+3. Call \`devplan_add_lesson\` with the completed data
+4. Skip trivial or one-off issues that won't recur`,
+						},
+					],
 				};
 			}
 		);

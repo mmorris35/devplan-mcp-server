@@ -354,8 +354,11 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
 /**
  * Generate detailed DEVELOPMENT_PLAN.md with paint-by-numbers subtasks.
  * Each subtask has explicit deliverables, files, and success criteria.
+ *
+ * @param briefContent - The PROJECT_BRIEF.md content
+ * @param lessons - Optional array of lessons to inject into subtask success criteria
  */
-export function generatePlan(briefContent: string): string {
+export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 	const brief = parseBrief(briefContent);
 	const techStack = generateTechStack(brief);
 	const projectType = (brief.projectType.toLowerCase().replace(/[\s-]/g, "_") || "cli") as
@@ -409,9 +412,27 @@ export function generatePlan(briefContent: string): string {
 											.map((f) => `- \`${replaceTemplatePlaceholders(f, brief.projectName)}\``)
 											.join("\n")
 									: "- None";
-							const successCriteria = subtask.successCriteria
-								.map((c) => `- [ ] ${replaceTemplatePlaceholders(c, brief.projectName)}`)
-								.join("\n");
+							// Base success criteria from template
+							const baseSuccessCriteria = subtask.successCriteria
+								.map((c) => `- [ ] ${replaceTemplatePlaceholders(c, brief.projectName)}`);
+
+							// Add lesson-based success criteria if lessons provided
+							let lessonCriteria: string[] = [];
+							if (lessons && lessons.length > 0) {
+								const relevantLessons = findRelevantLessons(
+									subtask.title,
+									subtask.deliverables,
+									lessons,
+									projectType
+								);
+								if (relevantLessons.length > 0) {
+									lessonCriteria = generateLessonSuccessCriteria(relevantLessons)
+										.map(c => `- [ ] ${c}`);
+								}
+							}
+
+							const successCriteria = [...baseSuccessCriteria, ...lessonCriteria].join("\n");
+
 							// Technology Decisions are mandatory - provide default if not specified
 							const techDecisionsContent = subtask.techDecisions && subtask.techDecisions.length > 0
 								? subtask.techDecisions.map((t) => `- ${replaceTemplatePlaceholders(t, brief.projectName)}`).join("\n")
@@ -2894,6 +2915,63 @@ After fixes are applied:
 - If extensive changes, run full verification
 - Update report with new status
 
+## Capture Lessons Learned
+
+**IMPORTANT**: After completing verification, capture valuable lessons to improve future projects.
+
+### When to Capture a Lesson
+
+Capture a lesson when you find an issue that:
+- Could have been prevented with better planning
+- Is likely to recur in similar projects
+- Reveals a pattern that should be documented
+
+**Skip** one-off issues, typos, or project-specific edge cases.
+
+### How to Capture Lessons
+
+**Option 1: Automatic Extraction**
+\`\`\`
+Use devplan_extract_lessons_from_report with the verification report to automatically identify potential lessons
+\`\`\`
+
+**Option 2: Manual Capture**
+For each valuable issue found, call \`devplan_add_lesson\` with:
+\`\`\`json
+{
+  "issue": "What went wrong",
+  "root_cause": "Why it happened (the underlying cause)",
+  "fix": "How to prevent it (actionable guidance)",
+  "pattern": "Short identifier (e.g., 'Missing empty input validation')",
+  "project_types": ["${brief.projectType || "cli"}"],
+  "severity": "critical|warning|info"
+}
+\`\`\`
+
+### Severity Guide
+
+| Severity | Use When |
+|----------|----------|
+| **critical** | Security issues, data loss, crashes |
+| **warning** | Functionality gaps, poor UX, missing validation |
+| **info** | Performance tips, best practices, nice-to-haves |
+
+### Example Lesson
+
+From verification finding: "App crashes on empty input"
+\`\`\`json
+{
+  "issue": "Application crashes with unhandled exception when given empty input",
+  "root_cause": "No input validation before processing - assumed non-empty input",
+  "fix": "Always validate input at entry points: check for empty/null and return helpful error",
+  "pattern": "Missing empty input validation",
+  "project_types": ["cli", "api"],
+  "severity": "critical"
+}
+\`\`\`
+
+This lesson will automatically appear in future plans as a safeguard.
+
 ## Invocation
 
 To verify the completed application:
@@ -2908,6 +2986,7 @@ The agent will:
 4. Test edge cases
 5. Check error handling
 6. Generate verification report
+7. **Capture lessons learned** for issues that should be prevented in future projects
 
 ---
 
@@ -3009,4 +3088,123 @@ ${info.map(l => `- **${l.pattern}**: ${l.fix}`).join("\n")}
 	}
 
 	return sections.join("\n");
+}
+
+/**
+ * Keywords that indicate what type of functionality a subtask involves.
+ * Used to match lessons to relevant subtasks.
+ */
+const SUBTASK_KEYWORDS: Record<string, string[]> = {
+	input: ["input", "parse", "read", "argument", "param", "flag", "option", "cli", "command"],
+	file: ["file", "path", "read", "write", "load", "save", "export", "import", "directory", "folder"],
+	validation: ["valid", "check", "verify", "sanitize", "clean", "format"],
+	error: ["error", "exception", "fail", "crash", "handle", "catch", "try"],
+	api: ["api", "endpoint", "request", "response", "http", "rest", "fetch", "call"],
+	auth: ["auth", "login", "password", "token", "session", "permission", "access"],
+	database: ["database", "db", "sql", "query", "model", "schema", "migrate"],
+	test: ["test", "spec", "coverage", "mock", "stub", "fixture"],
+	config: ["config", "setting", "option", "env", "environment"],
+	output: ["output", "print", "display", "render", "format", "template"],
+};
+
+/**
+ * Pattern keywords that indicate what type of issue a lesson addresses.
+ */
+const LESSON_PATTERN_KEYWORDS: Record<string, string[]> = {
+	input: ["input", "empty", "null", "argument", "parameter", "missing"],
+	file: ["file", "path", "directory", "not found", "permission", "access"],
+	validation: ["valid", "invalid", "format", "type", "range", "boundary"],
+	error: ["error", "exception", "crash", "handle", "unhandled", "graceful"],
+	api: ["api", "endpoint", "request", "response", "timeout", "retry"],
+	auth: ["auth", "password", "token", "session", "permission", "unauthorized"],
+	database: ["database", "query", "connection", "transaction", "migration"],
+	test: ["test", "coverage", "mock", "assertion"],
+	config: ["config", "environment", "setting", "default"],
+	output: ["output", "format", "encoding", "unicode", "display"],
+};
+
+/**
+ * Determine the categories a subtask belongs to based on its content.
+ */
+export function categorizeSubtask(title: string, deliverables: string[]): string[] {
+	const content = [title, ...deliverables].join(" ").toLowerCase();
+	const categories: string[] = [];
+
+	for (const [category, keywords] of Object.entries(SUBTASK_KEYWORDS)) {
+		if (keywords.some(kw => content.includes(kw))) {
+			categories.push(category);
+		}
+	}
+
+	return categories;
+}
+
+/**
+ * Determine the categories a lesson belongs to based on its pattern and issue.
+ */
+export function categorizeLesson(lesson: Lesson): string[] {
+	const content = [lesson.pattern, lesson.issue, lesson.fix].join(" ").toLowerCase();
+	const categories: string[] = [];
+
+	for (const [category, keywords] of Object.entries(LESSON_PATTERN_KEYWORDS)) {
+		if (keywords.some(kw => content.includes(kw))) {
+			categories.push(category);
+		}
+	}
+
+	return categories;
+}
+
+/**
+ * Find lessons that are relevant to a specific subtask.
+ * Returns lessons whose categories overlap with the subtask's categories.
+ */
+export function findRelevantLessons(
+	subtaskTitle: string,
+	subtaskDeliverables: string[],
+	lessons: Lesson[],
+	projectType: string
+): Lesson[] {
+	const filteredLessons = filterLessonsForProject(lessons, projectType);
+	const subtaskCategories = categorizeSubtask(subtaskTitle, subtaskDeliverables);
+
+	if (subtaskCategories.length === 0) {
+		return [];
+	}
+
+	return filteredLessons.filter(lesson => {
+		const lessonCategories = categorizeLesson(lesson);
+		// Check if any category overlaps
+		return lessonCategories.some(cat => subtaskCategories.includes(cat));
+	});
+}
+
+/**
+ * Generate additional success criteria for a subtask based on relevant lessons.
+ * Returns an array of success criteria strings to be added to the subtask.
+ */
+export function generateLessonSuccessCriteria(lessons: Lesson[]): string[] {
+	const criteria: string[] = [];
+	const seenFixes = new Set<string>();
+
+	// Prioritize by severity
+	const sorted = [...lessons].sort((a, b) => {
+		const order = { critical: 0, warning: 1, info: 2 };
+		return order[a.severity] - order[b.severity];
+	});
+
+	for (const lesson of sorted) {
+		// Normalize the fix to avoid near-duplicates
+		const normalizedFix = lesson.fix.toLowerCase().trim();
+		if (seenFixes.has(normalizedFix)) continue;
+		seenFixes.add(normalizedFix);
+
+		// Convert fix to a testable success criterion
+		const severityPrefix = lesson.severity === "critical" ? "🔴 " : lesson.severity === "warning" ? "🟡 " : "";
+		const criterion = `${severityPrefix}${lesson.fix} (from lesson: ${lesson.pattern})`;
+		criteria.push(criterion);
+	}
+
+	// Limit to avoid overwhelming the subtask
+	return criteria.slice(0, 3);
 }
