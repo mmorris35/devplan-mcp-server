@@ -245,6 +245,112 @@ export function parseBrief(content: string): ProjectBrief {
 	};
 }
 
+/**
+ * Detect primary programming language from a list of technologies.
+ * Returns "python", "typescript", "javascript", or "unknown".
+ */
+export function detectLanguage(technologies: string[]): "python" | "typescript" | "javascript" | "unknown" {
+	const techLower = technologies.map(t => t.toLowerCase()).join(" ");
+
+	// Check for Python indicators
+	const pythonIndicators = ["python", "fastapi", "django", "flask", "pytest", "ruff", "mypy", "pip", "pypi", "uvicorn", "sqlalchemy", "pydantic"];
+	if (pythonIndicators.some(indicator => techLower.includes(indicator))) {
+		return "python";
+	}
+
+	// Check for TypeScript indicators
+	const tsIndicators = ["typescript", "tsx", "next.js", "nextjs", "prisma", "trpc"];
+	if (tsIndicators.some(indicator => techLower.includes(indicator))) {
+		return "typescript";
+	}
+
+	// Check for JavaScript/Node indicators
+	const jsIndicators = ["node", "javascript", "express", "react", "vue", "npm", "yarn", "jest", "eslint"];
+	if (jsIndicators.some(indicator => techLower.includes(indicator))) {
+		return "javascript";
+	}
+
+	return "unknown";
+}
+
+/**
+ * Extract specific technologies from must_use list.
+ */
+function extractTechDetails(mustUse: string[]): {
+	language?: string;
+	framework?: string;
+	database?: string;
+	testing?: string;
+	deployment?: string;
+} {
+	const result: {
+		language?: string;
+		framework?: string;
+		database?: string;
+		testing?: string;
+		deployment?: string;
+	} = {};
+
+	for (const tech of mustUse) {
+		const lower = tech.toLowerCase();
+
+		// Language detection
+		if (lower.includes("python")) {
+			result.language = tech;
+		} else if (lower.includes("typescript")) {
+			result.language = "TypeScript";
+		}
+
+		// Framework detection
+		if (lower.includes("fastapi")) {
+			result.framework = "FastAPI";
+		} else if (lower.includes("django")) {
+			result.framework = "Django";
+		} else if (lower.includes("flask")) {
+			result.framework = "Flask";
+		} else if (lower.includes("next")) {
+			result.framework = "Next.js";
+		} else if (lower.includes("express")) {
+			result.framework = "Express";
+		} else if (lower.includes("click") || lower.includes("typer")) {
+			result.framework = tech;
+		}
+
+		// Database detection
+		if (lower.includes("postgres")) {
+			result.database = "PostgreSQL";
+		} else if (lower.includes("mysql")) {
+			result.database = "MySQL";
+		} else if (lower.includes("sqlite")) {
+			result.database = "SQLite";
+		} else if (lower.includes("mongo")) {
+			result.database = "MongoDB";
+		} else if (lower.includes("dynamodb")) {
+			result.database = "DynamoDB";
+		}
+
+		// Deployment detection
+		if (lower.includes("aws") || lower.includes("lambda")) {
+			result.deployment = "AWS Lambda";
+		} else if (lower.includes("vercel")) {
+			result.deployment = "Vercel";
+		} else if (lower.includes("docker")) {
+			result.deployment = "Docker";
+		} else if (lower.includes("sam") || lower.includes("serverless")) {
+			result.deployment = tech;
+		}
+
+		// Testing detection
+		if (lower.includes("pytest")) {
+			result.testing = "pytest";
+		} else if (lower.includes("jest")) {
+			result.testing = "Jest";
+		}
+	}
+
+	return result;
+}
+
 export function generateTechStack(brief: ProjectBrief): TechStack {
 	const template = getTemplate(brief.projectType);
 	const defaults = template.defaultTechStack;
@@ -256,25 +362,51 @@ export function generateTechStack(brief: ProjectBrief): TechStack {
 		return cannotUse.some((blocked) => tech.toLowerCase().includes(blocked));
 	};
 
-	// Build tech stack respecting constraints
-	let language = defaults.language;
-	let framework = defaults.framework || "";
-	let database = defaults.database || "";
-	const testing = defaults.testing || "pytest";
-	const linting = defaults.linting || "ruff";
-	const typeChecking = defaults.typeChecking || "mypy";
-	let deployment = defaults.deployment || "";
+	// Extract technologies from must_use - these take priority
+	const extracted = extractTechDetails(brief.mustUseTech);
+	const detectedLang = detectLanguage(brief.mustUseTech);
+
+	// Build tech stack: must_use > defaults > fallbacks
+	let language = extracted.language || defaults.language;
+	let framework = extracted.framework || defaults.framework || "";
+	let database = extracted.database || defaults.database || "";
+	let deployment = extracted.deployment || defaults.deployment || "";
+
+	// Set language-appropriate defaults for testing/linting
+	let testing = extracted.testing || defaults.testing;
+	let linting = defaults.linting;
+	let typeChecking = defaults.typeChecking;
+
+	if (detectedLang === "python" || language.toLowerCase().includes("python")) {
+		testing = testing || "pytest";
+		linting = "ruff";
+		typeChecking = "mypy";
+	} else if (detectedLang === "typescript" || detectedLang === "javascript") {
+		testing = testing || "Jest";
+		linting = "ESLint";
+		typeChecking = "TypeScript";
+	}
+
 	const ciCd = defaults.ciCd || "GitHub Actions";
 
+	// Apply cannot_use blocks
 	if (isBlocked(language)) language = "Python 3.11+";
 	if (isBlocked(framework)) framework = "";
 	if (isBlocked(database)) database = "";
 	if (isBlocked(deployment)) deployment = "";
 
-	// Add must_use items to additional tools
+	// Collect all must_use items for reference
 	const additionalTools: Record<string, string> = {};
 	brief.mustUseTech.forEach((tech, i) => {
-		additionalTools[`must_use_${i}`] = tech;
+		// Only add if not already extracted to a specific field
+		const lower = tech.toLowerCase();
+		const isExtracted = [
+			extracted.language, extracted.framework, extracted.database,
+			extracted.testing, extracted.deployment
+		].some(v => v && lower.includes(v.toLowerCase()));
+		if (!isExtracted) {
+			additionalTools[`must_use_${i}`] = tech;
+		}
 	});
 
 	return {
@@ -361,14 +493,34 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
 export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 	const brief = parseBrief(briefContent);
 	const techStack = generateTechStack(brief);
-	const projectType = (brief.projectType.toLowerCase().replace(/[\s-]/g, "_") || "cli") as
+	const declaredProjectType = (brief.projectType.toLowerCase().replace(/[\s-]/g, "_") || "cli") as
 		| "cli"
 		| "web_app"
 		| "api"
 		| "library";
 
-	// Get detailed task templates for this project type
-	const phaseTemplates = PROJECT_TYPE_TASKS[projectType] || PROJECT_TYPE_TASKS.cli;
+	// Detect language from tech stack to select appropriate templates
+	const detectedLang = detectLanguage(brief.mustUseTech);
+	const isPython = detectedLang === "python" || techStack.language.toLowerCase().includes("python");
+	const isTypeScript = detectedLang === "typescript" || techStack.language.toLowerCase().includes("typescript");
+
+	// Select templates based on BOTH project type AND language
+	// - web_app + Python → use api templates (Python/FastAPI based)
+	// - api + TypeScript → use web_app templates (TypeScript/Next.js based)
+	// - Otherwise use declared type
+	let effectiveTemplateType: "cli" | "web_app" | "api" | "library" = declaredProjectType;
+	let templateNote = "";
+
+	if (declaredProjectType === "web_app" && isPython) {
+		effectiveTemplateType = "api";
+		templateNote = `> **Note**: Using Python/FastAPI templates for this web application (detected Python in tech stack).\n\n`;
+	} else if (declaredProjectType === "api" && isTypeScript) {
+		effectiveTemplateType = "web_app";
+		templateNote = `> **Note**: Using TypeScript/Next.js templates for this API (detected TypeScript in tech stack).\n\n`;
+	}
+
+	const projectType = declaredProjectType; // Keep original for naming
+	const phaseTemplates = PROJECT_TYPE_TASKS[effectiveTemplateType] || PROJECT_TYPE_TASKS.cli;
 
 	const techStackSection = Object.entries(techStack)
 		.filter(([key, value]) => value && key !== "additionalTools")
@@ -525,7 +677,7 @@ please re-read claude.md and DEVELOPMENT_PLAN.md (the entire documents, for cont
 
 ## Project Overview
 
-**Project Name**: ${brief.projectName}
+${templateNote}**Project Name**: ${brief.projectName}
 **Goal**: ${brief.primaryGoal}
 **Target Users**: ${brief.targetUsers}
 **Timeline**: ${brief.timeline || "Not specified"}
