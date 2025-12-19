@@ -1,0 +1,40 @@
+name: Reference Repo Updated
+
+on:
+  repository_dispatch:
+    types: [reference-repo-updated]
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create sync issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = context.payload.client_payload.message || 'No message';
+            const sha = context.payload.client_payload.sha || 'unknown';
+            const shortSha = sha.substring(0, 7);
+
+            // Truncate message for title if too long
+            const titleMessage = message.length > 50 ? message.substring(0, 50) + '...' : message;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔄 Reference repo updated: ${titleMessage}`,
+              body: `The reference repo (ClaudeCode-DevPlanBuilder) has been updated.
+
+**Commit**: [\`${shortSha}\`](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})
+**Message**: ${message}
+
+[View full diff](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})
+
+---
+
+Review the changes and sync the MCP server if needed. Common updates to watch for:
+- New agent types (executor, verifier, etc.)
+- Changes to plan structure or templates
+- New documentation patterns`,
+              labels: ['sync', 'reference-repo']
+            });
