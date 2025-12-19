@@ -12,6 +12,9 @@ on:
         description: 'Commit message (for testing)'
         default: 'Manual test trigger'
 
+permissions:
+  issues: write
+
 jobs:
   create-issue:
     runs-on: ubuntu-latest
