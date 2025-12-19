@@ -3,6 +3,14 @@ name: Reference Repo Updated
 on:
   repository_dispatch:
     types: [reference-repo-updated]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA (for testing)'
+        default: 'test-sha'
+      message:
+        description: 'Commit message (for testing)'
+        default: 'Manual test trigger'
 
 jobs:
   create-issue:
@@ -12,8 +20,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const message = context.payload.client_payload.message || 'No message';
-            const sha = context.payload.client_payload.sha || 'unknown';
+            // Handle both repository_dispatch and workflow_dispatch
+            const isDispatch = context.eventName === 'repository_dispatch';
+            const message = isDispatch
+              ? (context.payload.client_payload?.message || 'No message')
+              : (context.payload.inputs?.message || 'Manual test');
+            const sha = isDispatch
+              ? (context.payload.client_payload?.sha || 'unknown')
+              : (context.payload.inputs?.sha || 'manual');
             const shortSha = sha.substring(0, 7);
 
             // Truncate message for title if too long
