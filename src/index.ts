@@ -6,12 +6,17 @@ import { addRateLimitHeaders, unauthorizedResponse, validateRequest } from "./au
 import {
 	createBrief,
 	detectTechConflicts,
+	filterLessonsForProject,
+	formatLesson,
 	generateClaudeMd,
 	generateExecutorAgent,
+	generateLessonId,
+	generateLessonsSafeguards,
 	generatePlan,
 	generateProgressSummary,
 	generateVerifierAgent,
 	getSubtask,
+	type Lesson,
 	parseBrief,
 	updateProgress,
 	validatePlan,
@@ -194,11 +199,44 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 			},
 			async ({ brief_content }) => {
 				const plan = generatePlan(brief_content);
+
+				// Get lessons from KV to include safeguards
+				const env = (this as unknown as { env: Env }).env;
+				let lessonsSection = "";
+				let lessonsCount = 0;
+				try {
+					const lessons = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (lessons && lessons.length > 0) {
+						const brief = parseBrief(brief_content);
+						const projectType = brief.projectType || "cli";
+						lessonsSection = generateLessonsSafeguards(lessons, projectType);
+						lessonsCount = filterLessonsForProject(lessons, projectType).length;
+					}
+				} catch {
+					// No lessons yet, skip safeguards section
+				}
+
+				// Insert lessons section after "## How to Use This Plan" section
+				let enhancedPlan = plan;
+				if (lessonsSection) {
+					const insertPoint = plan.indexOf("---\n\n## Project Overview");
+					if (insertPoint !== -1) {
+						enhancedPlan = plan.slice(0, insertPoint) + lessonsSection + "\n---\n\n" + plan.slice(insertPoint + 5);
+					} else {
+						// Fallback: prepend to plan
+						enhancedPlan = lessonsSection + "\n" + plan;
+					}
+				}
+
+				const lessonsNote = lessonsCount > 0
+					? `\n\n📚 **${lessonsCount} lessons learned** have been incorporated as safeguards in this plan.`
+					: "";
+
 				return {
 					content: [
 						{
 							type: "text",
-							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${plan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${enhancedPlan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
 
 Key things to verify/add:
 - Each subtask has 3-7 specific deliverables with checkboxes
@@ -214,7 +252,7 @@ Key things to verify/add:
   - [ ] All tests pass
   - [ ] Squash merge to main: \`git checkout main && git merge --squash feature/X-Y-name\`
   - [ ] Delete branch: \`git branch -d feature/X-Y-name\`
-  \`\`\`
+  \`\`\`${lessonsNote}
 
 NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md`,
 						},
@@ -445,6 +483,149 @@ ${recentLines}
 
 				return {
 					content: [{ type: "text", text: output }],
+				};
+			}
+		);
+
+		// Tool 13: devplan_add_lesson
+		this.server.tool(
+			"devplan_add_lesson",
+			"Add a lesson learned from verifier feedback. Lessons are stored in KV and used to improve future plan generation.",
+			{
+				issue: z.string().describe("What went wrong - the problem observed"),
+				root_cause: z.string().describe("Why it happened - the underlying cause"),
+				fix: z.string().describe("How it was fixed - the solution applied"),
+				pattern: z.string().describe("Pattern to watch for - a short identifier like 'Missing error handling for empty input'"),
+				project_types: z.array(z.string()).optional().describe("Project types this applies to (e.g., ['cli', 'api']). Empty means all types."),
+				severity: z.enum(["critical", "warning", "info"]).default("warning").describe("Severity: critical (must fix), warning (should fix), info (nice to know)"),
+			},
+			async ({ issue, root_cause, fix, pattern, project_types, severity }) => {
+				const lesson: Lesson = {
+					id: generateLessonId(),
+					issue,
+					rootCause: root_cause,
+					fix,
+					pattern,
+					projectTypes: project_types || [],
+					severity,
+					createdAt: new Date().toISOString().split("T")[0],
+				};
+
+				// Get existing lessons from KV
+				const env = (this as unknown as { env: Env }).env;
+				let lessons: Lesson[] = [];
+				try {
+					const existing = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (existing) {
+						lessons = existing;
+					}
+				} catch {
+					// First lesson, array doesn't exist yet
+				}
+
+				// Add the new lesson
+				lessons.push(lesson);
+
+				// Save back to KV
+				await env.DEVPLAN_KV.put("lessons", JSON.stringify(lessons));
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `✅ Lesson added successfully!
+
+${formatLesson(lesson)}
+
+**Total lessons stored**: ${lessons.length}
+
+This lesson will be included in future plan generation for ${lesson.projectTypes.length === 0 ? "all project types" : lesson.projectTypes.join(", ") + " projects"}.`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 14: devplan_list_lessons
+		this.server.tool(
+			"devplan_list_lessons",
+			"List all lessons learned from previous projects. Optionally filter by project type.",
+			{
+				project_type: z.string().optional().describe("Filter lessons for a specific project type (e.g., 'cli', 'api', 'web_app')"),
+			},
+			async ({ project_type }) => {
+				// Get lessons from KV
+				const env = (this as unknown as { env: Env }).env;
+				let lessons: Lesson[] = [];
+				try {
+					const existing = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (existing) {
+						lessons = existing;
+					}
+				} catch {
+					// No lessons yet
+				}
+
+				if (lessons.length === 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `📚 **No lessons learned yet.**
+
+To add a lesson, use the \`devplan_add_lesson\` tool after finding an issue during verification.
+
+Example workflow:
+1. Run the verifier agent on a completed project
+2. Find an issue that could have been prevented
+3. Use \`devplan_add_lesson\` to capture:
+   - What went wrong (issue)
+   - Why it happened (root_cause)
+   - How to fix it (fix)
+   - Pattern to watch for (pattern)
+   - Which project types it applies to (project_types)
+   - How severe it is (severity)`,
+							},
+						],
+					};
+				}
+
+				// Filter by project type if specified
+				const filteredLessons = project_type
+					? filterLessonsForProject(lessons, project_type)
+					: lessons;
+
+				// Group by severity
+				const critical = filteredLessons.filter(l => l.severity === "critical");
+				const warnings = filteredLessons.filter(l => l.severity === "warning");
+				const info = filteredLessons.filter(l => l.severity === "info");
+
+				const sections: string[] = [];
+				sections.push(`# 📚 Lessons Learned${project_type ? ` (filtered for ${project_type})` : ""}
+
+**Total**: ${filteredLessons.length} lessons${project_type && filteredLessons.length !== lessons.length ? ` (${lessons.length} total)` : ""}
+`);
+
+				if (critical.length > 0) {
+					sections.push(`## 🔴 Critical (${critical.length})
+${critical.map(l => formatLesson(l)).join("\n\n")}
+`);
+				}
+
+				if (warnings.length > 0) {
+					sections.push(`## 🟡 Warnings (${warnings.length})
+${warnings.map(l => formatLesson(l)).join("\n\n")}
+`);
+				}
+
+				if (info.length > 0) {
+					sections.push(`## 🔵 Info (${info.length})
+${info.map(l => formatLesson(l)).join("\n\n")}
+`);
+				}
+
+				return {
+					content: [{ type: "text", text: sections.join("\n") }],
 				};
 			}
 		);

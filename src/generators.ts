@@ -2916,3 +2916,97 @@ The agent will:
 
 	return { content, filePath };
 }
+
+// ============================================================================
+// LESSONS LEARNED SYSTEM
+// ============================================================================
+
+/**
+ * Represents a lesson learned from verifier feedback.
+ * These lessons are stored in KV and used to improve future plan generation.
+ */
+export interface Lesson {
+	id: string;
+	issue: string;           // What went wrong
+	rootCause: string;       // Why it happened
+	fix: string;             // How it was fixed
+	pattern: string;         // Pattern to watch for
+	projectTypes: string[];  // Which project types this applies to (e.g., ["cli", "api"])
+	severity: "critical" | "warning" | "info";
+	createdAt: string;       // ISO date string
+}
+
+/**
+ * Generate a unique lesson ID.
+ */
+export function generateLessonId(): string {
+	return `lesson_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Format a lesson for display.
+ */
+export function formatLesson(lesson: Lesson): string {
+	const severityIcon = lesson.severity === "critical" ? "🔴" : lesson.severity === "warning" ? "🟡" : "🔵";
+	return `${severityIcon} **${lesson.pattern}**
+- **Issue**: ${lesson.issue}
+- **Root Cause**: ${lesson.rootCause}
+- **Fix**: ${lesson.fix}
+- **Applies to**: ${lesson.projectTypes.join(", ") || "all"}
+- **Added**: ${lesson.createdAt}`;
+}
+
+/**
+ * Filter lessons relevant to a specific project type.
+ */
+export function filterLessonsForProject(lessons: Lesson[], projectType: string): Lesson[] {
+	const normalizedType = projectType.toLowerCase().replace(/[\s-]/g, "_");
+	return lessons.filter(lesson =>
+		lesson.projectTypes.length === 0 || // Empty means applies to all
+		lesson.projectTypes.some(t => t.toLowerCase().replace(/[\s-]/g, "_") === normalizedType)
+	);
+}
+
+/**
+ * Generate a "lessons learned" safeguards section for a development plan.
+ * This is included in generatePlan() when relevant lessons exist.
+ */
+export function generateLessonsSafeguards(lessons: Lesson[], projectType: string): string {
+	const relevantLessons = filterLessonsForProject(lessons, projectType);
+
+	if (relevantLessons.length === 0) {
+		return "";
+	}
+
+	// Group by severity
+	const critical = relevantLessons.filter(l => l.severity === "critical");
+	const warnings = relevantLessons.filter(l => l.severity === "warning");
+	const info = relevantLessons.filter(l => l.severity === "info");
+
+	const sections: string[] = [];
+
+	sections.push(`## ⚠️ Lessons Learned Safeguards
+
+Based on previous project experiences, pay special attention to these patterns:
+`);
+
+	if (critical.length > 0) {
+		sections.push(`### 🔴 Critical (Must Address)
+${critical.map(l => `- **${l.pattern}**: ${l.fix}`).join("\n")}
+`);
+	}
+
+	if (warnings.length > 0) {
+		sections.push(`### 🟡 Warnings (Should Address)
+${warnings.map(l => `- **${l.pattern}**: ${l.fix}`).join("\n")}
+`);
+	}
+
+	if (info.length > 0) {
+		sections.push(`### 🔵 Tips (Consider)
+${info.map(l => `- **${l.pattern}**: ${l.fix}`).join("\n")}
+`);
+	}
+
+	return sections.join("\n");
+}
