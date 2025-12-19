@@ -20,35 +20,43 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Handle both repository_dispatch and workflow_dispatch
             const isDispatch = context.eventName === 'repository_dispatch';
-            const message = isDispatch
-              ? (context.payload.client_payload?.message || 'No message')
-              : (context.payload.inputs?.message || 'Manual test');
-            const sha = isDispatch
-              ? (context.payload.client_payload?.sha || 'unknown')
-              : (context.payload.inputs?.sha || 'manual');
-            const shortSha = sha.substring(0, 7);
+            const payload = context.payload;
 
-            // Truncate message for title if too long
-            const titleMessage = message.length > 50 ? message.substring(0, 50) + '...' : message;
+            let message, sha;
+            if (isDispatch && payload.client_payload) {
+              message = payload.client_payload.message || 'No message';
+              sha = payload.client_payload.sha || 'unknown';
+            } else if (payload.inputs) {
+              message = payload.inputs.message || 'Manual test';
+              sha = payload.inputs.sha || 'manual';
+            } else {
+              message = 'Unknown trigger';
+              sha = 'unknown';
+            }
+
+            const shortSha = sha.substring(0, 7);
+            const titleMessage = message.length > 50
+              ? message.substring(0, 50) + '...'
+              : message;
+
+            const body = [
+              'The reference repo (ClaudeCode-DevPlanBuilder) has been updated.',
+              '',
+              `**Commit**: [\`${shortSha}\`](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})`,
+              `**Message**: ${message}`,
+              '',
+              `[View full diff](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})`,
+              '',
+              '---',
+              '',
+              'Review the changes and sync the MCP server if needed.'
+            ].join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `🔄 Reference repo updated: ${titleMessage}`,
-              body: `The reference repo (ClaudeCode-DevPlanBuilder) has been updated.
-
-**Commit**: [\`${shortSha}\`](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})
-**Message**: ${message}
-
-[View full diff](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})
-
----
-
-Review the changes and sync the MCP server if needed. Common updates to watch for:
-- New agent types (executor, verifier, etc.)
-- Changes to plan structure or templates
-- New documentation patterns`,
+              body: body,
               labels: ['sync', 'reference-repo']
             });
