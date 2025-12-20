@@ -2835,6 +2835,95 @@ If blocked:
    \`\`\`
 3. Report immediately to user
 
+## If Verification Fails
+
+### Linting Errors
+${isPython ? `1. Run \`ruff check --fix ${projectUnderscore} tests\` for auto-fixable issues
+2. For remaining issues, fix manually following error messages
+3. Run \`ruff check\` again to verify all issues resolved` : `1. Run \`npm run lint -- --fix\` for auto-fixable issues
+2. For remaining issues, fix manually following error messages
+3. Run \`npm run lint\` again to verify all issues resolved`}
+4. Re-run full verification before committing
+
+### Test Failures
+1. Read the full error traceback carefully
+2. Identify if failure is in new code or existing code:
+   - **New code**: Fix the implementation to match expected behavior
+   - **Existing code**: Check for breaking changes, add backwards compatibility
+3. Run specific failing test with verbose output:
+${isPython ? `   \`\`\`bash
+   pytest tests/test_specific.py::test_name -v
+   \`\`\`` : `   \`\`\`bash
+   npm test -- --testNamePattern="test name"
+   \`\`\``}
+4. After fixing, run FULL test suite to catch regressions
+5. Never commit with failing tests
+
+### Type Errors
+${isPython ? `1. Read mypy error message carefully - it shows exact location
+2. Common fixes:
+   - Add missing type hints: \`def func(arg: str) -> bool:\`
+   - Use Optional for nullable: \`Optional[str]\` or \`str | None\`
+   - Add type: ignore comment ONLY as last resort
+3. Run \`mypy ${projectUnderscore}\` to verify fix` : `1. Read TypeScript error message carefully - it shows exact location
+2. Common fixes:
+   - Add missing types: \`function func(arg: string): boolean\`
+   - Use union types for nullable: \`string | null\`
+   - Avoid \`any\` - use \`unknown\` and narrow the type
+3. Run \`npm run typecheck\` to verify fix`}
+
+## Handling Merge Conflicts
+
+When squash merging and conflicts occur:
+
+1. **DO NOT** force push or hard reset
+2. Identify conflicting files from git output:
+   \`\`\`bash
+   git status
+   \`\`\`
+3. For each conflicting file:
+   - Open file and find \`<<<<<<<\` markers
+   - Understand BOTH versions (yours and main)
+   - Choose correct resolution:
+     - Usually integrate both changes if they don't overlap
+     - If overlapping, keep the more complete/correct version
+   - Remove ALL conflict markers (\`<<<<<<<\`, \`=======\`, \`>>>>>>>\`)
+4. Run full verification suite after resolving
+5. Stage resolved files and complete merge:
+   \`\`\`bash
+   git add .
+   git commit
+   \`\`\`
+6. **If unsure about resolution**: STOP and ask user for guidance
+
+## If Session Interrupted
+
+If you cannot complete a subtask due to context limits or interruption:
+
+1. **DO NOT** commit partial/broken work to main
+2. Commit work-in-progress to feature branch:
+   \`\`\`bash
+   git add .
+   git commit -m "WIP: subtask X.Y.Z - [what was completed]
+
+   Remaining:
+   - [what still needs to be done]
+   - [any blockers or issues found]"
+   \`\`\`
+3. Update DEVELOPMENT_PLAN.md with partial progress:
+   \`\`\`markdown
+   **Completion Notes**:
+   - **Status**: ⏸️ IN PROGRESS
+   - **Completed**: [List what was done]
+   - **Remaining**: [List what still needs to be done]
+   - **Resume From**: [Specific point to continue from]
+   \`\`\`
+4. Mark subtask checkbox as \`[-]\` (partial) not \`[x]\` (complete)
+5. Next session can resume by:
+   - Reading the WIP commit message
+   - Checking Completion Notes for context
+   - Continuing from documented resume point
+
 ## Invocation
 
 To execute a subtask, use:
