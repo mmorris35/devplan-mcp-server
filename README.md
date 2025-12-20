@@ -6,6 +6,27 @@
 
 MCP server that helps Claude Code generate development plans using the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) methodology.
 
+```mermaid
+flowchart LR
+    subgraph Planning
+        A[Interview] --> B[Brief]
+        B --> C[Plan]
+    end
+
+    subgraph Execution
+        C --> D[Execute]
+        D --> E[Verify]
+    end
+
+    subgraph Learning
+        E -->|issues| F[Lessons]
+        F -->|improve| C
+    end
+
+    style A fill:#f9f,stroke:#333
+    style F fill:#ff9,stroke:#333
+```
+
 ## Install
 
 ```bash
@@ -30,6 +51,32 @@ Or add to `~/.claude/mcp.json`:
 Tell Claude Code: "Use devplan to help me build [your project idea]"
 
 The server provides scaffolding tools and references the original [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) repo for guidance, so plans stay up-to-date with the methodology.
+
+```mermaid
+sequenceDiagram
+    participant You
+    participant Claude as Claude Code
+    participant MCP as DevPlan MCP
+    participant KV as Lessons KV
+
+    You->>Claude: "build me a CLI tool"
+    Claude->>MCP: devplan_start()
+    MCP-->>Claude: methodology guidance
+    Claude->>MCP: devplan_create_brief()
+    Claude->>MCP: devplan_generate_plan()
+    MCP->>KV: fetch lessons
+    KV-->>MCP: past lessons
+    MCP-->>Claude: plan + lessons injected
+
+    loop Each Subtask
+        Claude->>Claude: execute & verify
+        Claude->>MCP: devplan_update_progress()
+    end
+
+    Claude->>MCP: devplan_add_lesson()
+    MCP->>KV: store lesson
+    Claude-->>You: project complete
+```
 
 ## Tools
 
