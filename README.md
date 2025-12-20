@@ -33,18 +33,44 @@ The server provides scaffolding tools and references the original [ClaudeCode-De
 
 ## Tools
 
+### Planning
+
 | Tool | Purpose |
 |------|---------|
 | `devplan_start` | Main entry point - guides Claude through the methodology |
 | `devplan_interview_questions` | Get questions to gather project requirements |
 | `devplan_create_brief` | Generate PROJECT_BRIEF.md |
-| `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold |
-| `devplan_generate_claude_md` | Generate CLAUDE.md scaffold |
 | `devplan_parse_brief` | Parse existing brief into structured data |
 | `devplan_list_templates` | List project templates (cli, web_app, api, library) |
-| `devplan_validate_plan` | Check plan completeness |
-| `devplan_get_subtask` | Get specific subtask details |
-| `devplan_update_progress` | Mark subtasks complete |
+
+### Generation
+
+| Tool | Purpose |
+|------|---------|
+| `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold |
+| `devplan_generate_claude_md` | Generate CLAUDE.md scaffold |
+| `devplan_generate_executor` | Generate Haiku-powered executor agent |
+| `devplan_generate_verifier` | Generate Sonnet-powered verifier agent |
+
+### Execution
+
+| Tool | Purpose |
+|------|---------|
+| `devplan_validate_plan` | Check plan completeness and structure |
+| `devplan_get_subtask` | Get specific subtask details by ID |
+| `devplan_update_progress` | Mark subtasks complete with notes |
+| `devplan_progress_summary` | Get completion stats and next actions |
+
+### Lessons Learned
+
+Feedback loop that captures issues from verification and incorporates them into future plans.
+
+| Tool | Purpose |
+|------|---------|
+| `devplan_add_lesson` | Capture a lesson from verifier findings |
+| `devplan_list_lessons` | List accumulated lessons by severity |
+| `devplan_delete_lesson` | Remove outdated or incorrect lessons |
+| `devplan_extract_lessons_from_report` | Auto-extract lessons from verification reports |
 
 ## Development
 
