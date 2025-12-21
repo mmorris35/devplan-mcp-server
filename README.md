@@ -244,7 +244,7 @@ graph TB
 
 ```mermaid
 timeline
-    title DevPlan MCP Server - December 2024
+    title DevPlan MCP Server - December 2025
 
     section Week 3
         Content Drift Detection : Detects outdated inline guidance
