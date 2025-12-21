@@ -48,7 +48,7 @@ export class DevPlanMCP extends McpAgent {
 		// Tool 0: devplan_start - The main entry point
 		this.server.tool(
 			"devplan_start",
-			"START HERE: Initialize a new project using the DevPlan methodology. This tool provides instructions for building a comprehensive development plan that Claude Code can execute step-by-step.",
+			"START HERE: Initialize a new project using the DevPlan methodology. This tool provides comprehensive inline instructions for building a development plan that Claude Code can execute step-by-step.",
 			{},
 			async () => ({
 				content: [
@@ -57,42 +57,305 @@ export class DevPlanMCP extends McpAgent {
 						text: `# DevPlan Project Builder
 
 You are about to create a development plan using the ClaudeCode-DevPlanBuilder methodology.
+This guide contains everything you need - no external fetches required.
 
-## IMPORTANT: Read the methodology first
+---
 
-Before proceeding, you MUST read and understand the full methodology from the original repository:
+## Step 1: Interview the User
 
-1. **Read the README**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/README.md
-2. **Read PROMPT_SEQUENCE.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/PROMPT_SEQUENCE.md
-3. **Study the example files** in the hello-cli example:
-   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/PROJECT_BRIEF.md
-   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
-   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md
-   - https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/hello-cli-executor.md
-4. **Read the Executor Agent docs**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/docs/EXECUTOR_AGENT.md
+Ask these questions ONE AT A TIME, waiting for responses:
 
-## Your Task
+1. "What's your project name?"
+2. "What type of project is this? (CLI tool, web app, API, or library)"
+3. "In one sentence, what does it do?"
+4. "Who will use it? (e.g., developers, end users, admins)"
+5. "What are the 3-5 must-have features for MVP?"
+6. "Any technologies you must use or cannot use?"
+7. "What's your timeline?"
+8. "Any constraints I should know about?"
 
-After reading those files, help the user create these 4 files:
-1. **PROJECT_BRIEF.md** - Capture their project requirements through interview
-2. **DEVELOPMENT_PLAN.md** - A detailed, paint-by-numbers development plan following the exact format from the example
-3. **CLAUDE.md** - Project rules following the exact format from the example
-4. **Executor Agent** (.claude/agents/{project}-executor.md) - A specialized Haiku-powered agent for executing subtasks
+---
 
-## Key Principles from the Methodology
+## Step 2: Create PROJECT_BRIEF.md
 
-- Each subtask must be completable in a single 2-4 hour session
-- 3-7 deliverables per subtask with explicit checkboxes
-- Git branching at TASK level (not subtask) - one branch per task, squash merge when complete
-- Prerequisites reference specific subtask IDs
-- Completion notes template for every subtask
-- Success criteria that are testable and objective
-- Plans must be "Haiku-executable" - complete code, no inference required
-- **Task Complete section** after each task's subtasks with squash merge checklist
+Write to \`PROJECT_BRIEF.md\` using this structure:
+
+\`\`\`markdown
+# Project Brief: {name}
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Project Name** | {name} |
+| **Project Type** | {cli/web_app/api/library} |
+| **Goal** | {one sentence} |
+| **Timeline** | {timeline} |
+| **Team Size** | 1 |
+
+## Target Users
+
+- {user type 1}
+- {user type 2}
+
+## Features
+
+### Must-Have (MVP)
+
+1. **{Feature Name}** - {description}
+2. **{Feature Name}** - {description}
+
+### Nice-to-Have (v2)
+
+- {feature}
+
+## Technical Requirements
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | {language} |
+| Framework | {framework} |
+| Testing | {test framework} |
+
+### Constraints
+
+- {constraint 1}
+- {constraint 2}
+
+## Success Criteria
+
+1. {criterion 1}
+2. {criterion 2}
+
+## Out of Scope
+
+- {thing 1}
+- {thing 2}
+\`\`\`
+
+---
+
+## Step 3: Create DEVELOPMENT_PLAN.md
+
+Structure the plan with phases, tasks, and subtasks:
+
+- **Phases** (0, 1, 2...): Major milestones
+- **Tasks** (0.1, 1.2...): Features within a phase (one git branch each)
+- **Subtasks** (0.1.1, 1.2.3...): Single-session work items (2-4 hours each)
+
+### Subtask Template
+
+Each subtask MUST include ALL of these sections:
+
+\`\`\`markdown
+**Subtask X.Y.Z: {Title} (Single Session)**
+
+**Prerequisites**:
+- [x] X.Y.W: {Previous subtask title}
+
+**Deliverables**:
+- [ ] {Specific, actionable item with exact file path}
+- [ ] {Another specific item - 3-7 total}
+- [ ] {Write tests for the above}
+
+**Technology Decisions**:
+- {Specific library/pattern choice with rationale}
+
+**Files to Create**:
+- \`src/path/to/file.ts\`
+
+**Files to Modify**:
+- \`src/existing/file.ts\`
+
+**Success Criteria**:
+- [ ] {Testable condition: "X command returns Y"}
+- [ ] {Another testable condition}
+- [ ] All tests pass
+
+**Completion Notes**:
+- **Implementation**: (what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail status)
+- **Branch**: (branch name)
+\`\`\`
+
+### Task Complete Section
+
+Add after each task's subtasks:
+
+\`\`\`markdown
+### Task X.Y Complete - Squash Merge
+
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] Squash merge: \`git checkout main && git merge --squash feature/X-Y-name\`
+- [ ] Delete branch: \`git branch -d feature/X-Y-name\`
+\`\`\`
+
+### Critical Rules
+
+1. **Write complete code blocks** - Claude Haiku will execute this plan; it cannot infer missing details
+2. **Git workflow**: One branch per TASK (not subtask). Commit after each subtask. Squash merge when task completes.
+3. **3-7 deliverables** per subtask, each with explicit checkbox
+4. **2-4 hour scope** per subtask maximum
+
+---
+
+## Step 4: Create CLAUDE.md
+
+Write project rules with these sections:
+
+\`\`\`markdown
+# {Project} - Claude Code Rules
+
+## Project Overview
+{One paragraph description}
+
+## Quick Reference
+
+| Component | Technology |
+|-----------|------------|
+| Language | {language} |
+| Framework | {framework} |
+| Testing | {test framework} |
+| Linting | {linter} |
+
+## Directory Structure
+\\\`\\\`\\\`
+{project}/
+├── src/
+├── tests/
+└── ...
+\\\`\\\`\\\`
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| \`{install cmd}\` | Install dependencies |
+| \`{test cmd}\` | Run tests |
+| \`{lint cmd}\` | Run linter |
+
+## Coding Standards
+
+- {Standard 1}
+- {Standard 2}
+
+## Session Checklist
+
+### Starting a Session
+- [ ] Read this file
+- [ ] Check DEVELOPMENT_PLAN.md for next subtask
+- [ ] Create/checkout correct branch
+
+### Ending a Session
+- [ ] All tests pass
+- [ ] Commit with semantic message
+- [ ] Update completion notes in plan
+\`\`\`
+
+---
+
+## Step 5: Create Executor Agent
+
+Write to \`.claude/agents/{project}-executor.md\`:
+
+\`\`\`markdown
+---
+name: {project}-executor
+description: PROACTIVELY use this agent to execute {project} development subtasks.
+tools: Read, Write, Edit, Bash, Glob, Grep
+model: haiku
+---
+
+# {Project} Executor Agent
+
+## Before Starting
+1. Read CLAUDE.md completely
+2. Read DEVELOPMENT_PLAN.md completely
+3. Find the subtask you're assigned
+
+## Execution Loop
+For each deliverable checkbox:
+1. Implement the requirement exactly as specified
+2. Write/update tests
+3. Run tests and fix failures
+4. Mark checkbox complete in the plan
+
+## After Completion
+1. Fill in all completion notes fields
+2. Commit with semantic message: \`feat(scope): description\`
+3. Report what was done
+
+## Error Recovery
+- If tests fail: fix immediately before continuing
+- If blocked: document in completion notes, move to next deliverable
+- If unclear: check CLAUDE.md for project conventions
+\`\`\`
+
+---
+
+## Step 6: Create Verifier Agent
+
+Write to \`.claude/agents/{project}-verifier.md\`:
+
+\`\`\`markdown
+---
+name: {project}-verifier
+description: Validate completed application against PROJECT_BRIEF.md
+tools: Read, Bash, Glob, Grep
+model: sonnet
+---
+
+# {Project} Verifier Agent
+
+## Verification Process
+1. Read PROJECT_BRIEF.md for requirements
+2. Smoke test: run the application
+3. Feature verification: test each MVP feature
+4. Edge cases: test error handling
+5. Produce verification report
+
+## Report Format
+For each feature: PASS/FAIL with evidence
+\`\`\`
+
+---
+
+## Common Mistakes to Avoid
+
+❌ Don't create branches for subtasks (only for TASKS)
+❌ Don't write vague deliverables ("implement feature") - be specific with file paths
+❌ Don't skip success criteria - they're how we verify completion
+❌ Don't forget the "Task Complete" section after each task
+❌ Don't use placeholder code - write real, complete, copy-pasteable code blocks
+❌ Don't skip the completion notes template
+
+---
+
+## Execution Prompt
+
+Tell the user to execute subtasks with:
+
+\`\`\`
+Use the {project}-executor agent to execute subtask [X.Y.Z]
+\`\`\`
+
+---
+
+## Reference
+
+For complete examples, see: https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/tree/main/examples/hello-cli
+
+---
 
 ## Next Step
 
-Fetch and read the README.md from the repository above, then interview the user about their project idea.`,
+Start by asking the user: **"What's your project name?"**`,
 					},
 				],
 			})
