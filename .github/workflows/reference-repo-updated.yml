@@ -11,15 +11,83 @@ on:
       message:
         description: 'Commit message (for testing)'
         default: 'Manual test trigger'
+      force_check:
+        description: 'Force content check even if hash matches'
+        type: boolean
+        default: false
 
 permissions:
+  contents: write
   issues: write
 
 jobs:
-  create-issue:
+  check-content-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      content_changed: ${{ steps.compare.outputs.changed }}
+      new_hash: ${{ steps.compare.outputs.new_hash }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch reference repo README
+        id: fetch
+        run: |
+          curl -s https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/README.md > /tmp/readme.md
+          echo "Fetched README.md ($(wc -c < /tmp/readme.md) bytes)"
+
+      - name: Extract methodology section
+        id: extract
+        run: |
+          # Extract the "For Claude Code" section (Steps 1-6)
+          # This is the content that should match devplan_start inline guidance
+          sed -n '/^## 🤖 For Claude Code/,/^## 🚀 Quick Start/p' /tmp/readme.md | head -n -1 > /tmp/methodology.md
+
+          # Also extract common mistakes section
+          sed -n '/^### Common Mistakes to Avoid/,/^### Execution Prompt/p' /tmp/readme.md >> /tmp/methodology.md
+
+          echo "Extracted methodology section ($(wc -l < /tmp/methodology.md) lines)"
+
+          # Compute hash of methodology content
+          NEW_HASH=$(sha256sum /tmp/methodology.md | cut -d' ' -f1)
+          echo "new_hash=$NEW_HASH" >> $GITHUB_OUTPUT
+          echo "New content hash: $NEW_HASH"
+
+      - name: Compare with stored hash
+        id: compare
+        run: |
+          NEW_HASH="${{ steps.extract.outputs.new_hash }}"
+          FORCE_CHECK="${{ github.event.inputs.force_check }}"
+
+          # Read stored hash
+          if [ -f .github/methodology-hash.txt ]; then
+            STORED_HASH=$(cat .github/methodology-hash.txt)
+            echo "Stored hash: $STORED_HASH"
+          else
+            STORED_HASH="none"
+            echo "No stored hash found"
+          fi
+
+          # Compare
+          if [ "$NEW_HASH" != "$STORED_HASH" ] || [ "$FORCE_CHECK" == "true" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Content has changed! Inline guidance may need updating."
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Content unchanged. No action needed."
+          fi
+
+          echo "new_hash=$NEW_HASH" >> $GITHUB_OUTPUT
+
+  create-sync-issue:
+    needs: check-content-drift
+    if: needs.check-content-drift.outputs.content_changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Create sync issue
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create or update sync issue
         uses: actions/github-script@v7
         with:
           script: |
@@ -39,27 +107,88 @@ jobs:
             }
 
             const shortSha = sha.substring(0, 7);
-            const titleMessage = message.length > 50
-              ? message.substring(0, 50) + '...'
-              : message;
+
+            // Check for existing open sync issue about inline guidance
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'sync,inline-guidance'
+            });
+
+            if (existingIssues.length > 0) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues[0].number,
+                body: `Reference repo updated again:\n\n**Commit**: [\`${shortSha}\`](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})\n**Message**: ${message}`
+              });
+              console.log(`Added comment to existing issue #${existingIssues[0].number}`);
+              return;
+            }
 
             const body = [
-              'The reference repo (ClaudeCode-DevPlanBuilder) has been updated.',
+              '## Inline Guidance Content Drift Detected',
               '',
+              'The methodology content in the reference repo has changed. The `devplan_start` tool inline guidance may need updating.',
+              '',
+              '### Trigger',
               `**Commit**: [\`${shortSha}\`](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})`,
               `**Message**: ${message}`,
               '',
-              `[View full diff](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/commit/${sha})`,
+              '### Action Required',
+              '',
+              'Compare the methodology section in the [reference repo README](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/blob/main/README.md) with the inline content in `src/index.ts` (`devplan_start` tool).',
+              '',
+              'Key sections to check:',
+              '- Step 1: Interview questions',
+              '- Step 2: PROJECT_BRIEF.md template',
+              '- Step 3: DEVELOPMENT_PLAN.md structure',
+              '- Step 4: CLAUDE.md template',
+              '- Step 5: Executor agent template',
+              '- Step 6: Verifier agent template',
+              '- Common mistakes to avoid',
+              '',
+              '### After Updating',
+              '',
+              'Once `devplan_start` is updated, the hash will be automatically updated when this workflow runs again.',
               '',
               '---',
               '',
-              'Review the changes and sync the MCP server if needed.'
+              '*This issue was auto-generated by the content drift detection workflow.*'
             ].join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🔄 Reference repo updated: ${titleMessage}`,
+              title: `🔄 Inline guidance may need sync: ${message.substring(0, 40)}...`,
               body: body,
-              labels: ['sync', 'reference-repo']
+              labels: ['sync', 'inline-guidance']
             });
+
+  update-hash:
+    needs: check-content-drift
+    if: always() && needs.check-content-drift.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update stored hash
+        run: |
+          mkdir -p .github
+          echo "${{ needs.check-content-drift.outputs.new_hash }}" > .github/methodology-hash.txt
+          echo "Updated hash file with: ${{ needs.check-content-drift.outputs.new_hash }}"
+
+      - name: Commit hash update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/methodology-hash.txt
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update methodology content hash [skip ci]"
+            git push
+          fi
