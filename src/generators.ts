@@ -3449,3 +3449,474 @@ export function generateLessonSuccessCriteria(lessons: Lesson[]): string[] {
 	// Limit to avoid overwhelming the subtask
 	return criteria.slice(0, 3);
 }
+
+// ============================================================================
+// ISSUE-TO-TASK SYSTEM
+// GitHub Issue → Remediation Task conversion for post-release work
+// ============================================================================
+
+import type { IssueClassification, ParsedIssue, RemediationSubtask, RemediationTask } from "./models";
+import { ParsedIssueSchema } from "./models";
+
+/**
+ * Parse GitHub issue JSON from gh CLI output.
+ */
+export function parseIssueContent(jsonContent: string): ParsedIssue {
+	try {
+		const parsed = JSON.parse(jsonContent);
+		return ParsedIssueSchema.parse(parsed);
+	} catch (e) {
+		if (e instanceof SyntaxError) {
+			throw new Error(`Invalid JSON: ${e.message}`);
+		}
+		throw new Error(`Invalid issue format: ${e instanceof Error ? e.message : "Unknown error"}`);
+	}
+}
+
+/**
+ * Classify an issue to determine type, severity, and approach.
+ */
+export function classifyIssue(issue: ParsedIssue): IssueClassification {
+	const title = issue.title.toLowerCase();
+	const body = issue.body.toLowerCase();
+	const labels = issue.labels?.map((l) => l.name.toLowerCase()) || [];
+
+	// Detect type from labels first (most reliable)
+	let type: IssueClassification["type"] = "enhancement";
+	if (labels.some((l) => l.includes("bug") || l.includes("fix"))) {
+		type = "bug";
+	} else if (labels.some((l) => l.includes("security") || l.includes("vulnerability"))) {
+		type = "security";
+	} else if (labels.some((l) => l.includes("performance") || l.includes("slow"))) {
+		type = "performance";
+	} else if (labels.some((l) => l.includes("regression"))) {
+		type = "regression";
+	} else if (labels.some((l) => l.includes("docs") || l.includes("documentation"))) {
+		type = "documentation";
+	}
+	// Fallback to content analysis
+	else if (body.includes("regression") || title.includes("broke") || title.includes("no longer")) {
+		type = "regression";
+	} else if (body.includes("slow") || body.includes("performance") || body.includes("timeout")) {
+		type = "performance";
+	} else if (body.includes("security") || body.includes("vulnerability") || body.includes("xss") || body.includes("injection")) {
+		type = "security";
+	} else if (title.includes("bug") || title.includes("fix") || title.includes("error") || title.includes("crash")) {
+		type = "bug";
+	}
+
+	// Detect severity from labels
+	let severity: IssueClassification["severity"] = "medium";
+	if (labels.some((l) => l.includes("critical") || l.includes("urgent") || l.includes("p0"))) {
+		severity = "critical";
+	} else if (labels.some((l) => l.includes("high") || l.includes("p1") || l.includes("important"))) {
+		severity = "high";
+	} else if (labels.some((l) => l.includes("low") || l.includes("minor") || l.includes("p3"))) {
+		severity = "low";
+	}
+	// Infer severity from type
+	else if (type === "security" || type === "regression") {
+		severity = "high";
+	}
+
+	// Extract affected components
+	const affectedComponents = extractAffectedComponents(issue.body);
+
+	// Generate suggested approach
+	const suggestedApproach = generateSuggestedApproach(type, affectedComponents, issue);
+
+	return { type, severity, affectedComponents, suggestedApproach };
+}
+
+/**
+ * Extract affected components from issue body (file paths and module names).
+ */
+export function extractAffectedComponents(issueBody: string): string[] {
+	const components: string[] = [];
+
+	// Look for file paths mentioned in backticks
+	const filePaths = issueBody.match(/`([^`]+\.(ts|js|py|tsx|jsx|css|json|md))`/g) || [];
+	for (const match of filePaths) {
+		const path = match.replace(/`/g, "");
+		if (!components.includes(path)) {
+			components.push(path);
+		}
+	}
+
+	// Look for file paths without backticks (common patterns)
+	const pathPatterns = issueBody.match(/(?:in |at |file |path )([a-zA-Z0-9_\-/.]+\.(ts|js|py|tsx|jsx))/gi) || [];
+	for (const match of pathPatterns) {
+		const path = match.replace(/^(in |at |file |path )/i, "");
+		if (!components.includes(path)) {
+			components.push(path);
+		}
+	}
+
+	// Look for component/module mentions
+	const modulePatterns = [/`?(\w+(?:Service|Controller|Component|Module|Handler|Manager|Provider|Factory))`?/g, /(?:the |in )(\w+) (?:module|component|service|class)/gi];
+
+	for (const pattern of modulePatterns) {
+		const matches = issueBody.matchAll(pattern);
+		for (const match of matches) {
+			if (match[1] && !components.includes(match[1]) && match[1].length > 3) {
+				components.push(match[1]);
+			}
+		}
+	}
+
+	return components.slice(0, 5); // Limit to top 5
+}
+
+/**
+ * Generate a suggested approach based on issue type and components.
+ */
+function generateSuggestedApproach(type: IssueClassification["type"], components: string[], issue: ParsedIssue): string {
+	const hasComponents = components.length > 0;
+	const componentList = hasComponents ? components.slice(0, 3).join(", ") : "affected components";
+
+	switch (type) {
+		case "bug":
+			return `1. Reproduce the bug locally\n2. Identify root cause in ${componentList}\n3. Implement fix with regression test\n4. Verify fix resolves issue #${issue.number}`;
+		case "regression":
+			return `1. Identify commit that introduced regression\n2. Review changes in ${componentList}\n3. Revert or fix the breaking change\n4. Add regression test to prevent recurrence`;
+		case "security":
+			return `1. Assess security impact and scope\n2. Implement fix in ${componentList}\n3. Add security validation/sanitization\n4. Review for similar vulnerabilities`;
+		case "performance":
+			return `1. Profile and measure current performance\n2. Identify bottleneck in ${componentList}\n3. Implement optimization\n4. Benchmark and verify improvement`;
+		case "documentation":
+			return `1. Review current documentation state\n2. Update ${componentList}\n3. Verify accuracy and completeness`;
+		case "enhancement":
+		default:
+			return `1. Review requirements from issue #${issue.number}\n2. Implement changes in ${componentList}\n3. Add/update tests\n4. Update documentation if needed`;
+	}
+}
+
+/**
+ * Extract problem summary from issue body.
+ */
+export function extractProblemSummary(issueBody: string): string {
+	// Try to find a "Problem" or "Bug" section
+	const sections = ["## Problem", "## Bug", "## Issue", "## Description", "### Problem", "### Bug", "### Issue", "### Description"];
+	for (const section of sections) {
+		const regex = new RegExp(`${section.replace(/[#]/g, "\\#")}\\n([\\s\\S]+?)(?=\\n##|\\n###|$)`, "i");
+		const match = issueBody.match(regex);
+		if (match) {
+			return match[1].trim().slice(0, 500);
+		}
+	}
+
+	// Fall back to first paragraph (skip any front matter)
+	const lines = issueBody.split("\n").filter((l) => l.trim() && !l.startsWith("#") && !l.startsWith("<!--"));
+	const firstPara = lines.slice(0, 3).join("\n");
+	return firstPara.slice(0, 500) || "See issue for details.";
+}
+
+/**
+ * Extract root cause from issue body or comments.
+ */
+export function extractRootCause(issueBody: string, comments?: ParsedIssue["comments"]): string | undefined {
+	// Check issue body for root cause section
+	const causePatterns = [/## (?:Root )?Cause\n([\s\S]+?)(?=\n##|$)/i, /### (?:Root )?Cause\n([\s\S]+?)(?=\n##|###|$)/i, /(?:root cause|caused by|because)[:\s]+([^\n]+)/i];
+
+	for (const pattern of causePatterns) {
+		const match = issueBody.match(pattern);
+		if (match) return match[1].trim();
+	}
+
+	// Check comments for developer analysis
+	if (comments) {
+		for (const comment of comments) {
+			for (const pattern of causePatterns) {
+				const match = comment.body.match(pattern);
+				if (match) return match[1].trim();
+			}
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Generate task ID for a remediation task, avoiding conflicts with existing plan.
+ */
+export function generateRemediationTaskId(existingPlanContent: string): { phaseId: string; taskId: string; subtaskBaseId: string } {
+	// Parse existing plan to find highest R.X phase
+	const remediationPhasePattern = /## Phase R\.(\d+)/g;
+	const matches = [...existingPlanContent.matchAll(remediationPhasePattern)];
+
+	if (matches.length === 0) {
+		// First remediation phase
+		return { phaseId: "R.1", taskId: "R.1.1", subtaskBaseId: "R.1.1" };
+	}
+
+	// Find highest existing R phase number
+	const maxPhase = Math.max(...matches.map((m) => parseInt(m[1])));
+	const nextPhase = maxPhase + 1;
+
+	return {
+		phaseId: `R.${nextPhase}`,
+		taskId: `R.${nextPhase}.1`,
+		subtaskBaseId: `R.${nextPhase}.1`,
+	};
+}
+
+/**
+ * Generate fix deliverables based on classification and components.
+ */
+function generateFixDeliverables(classification: IssueClassification, components: string[], language?: string): string[] {
+	const deliverables: string[] = [];
+	const hasFiles = components.some((c) => c.includes("."));
+
+	// Primary fix deliverable
+	switch (classification.type) {
+		case "bug":
+			deliverables.push("Implement fix for the reported bug");
+			break;
+		case "regression":
+			deliverables.push("Revert or fix the breaking change");
+			break;
+		case "security":
+			deliverables.push("Implement security fix with proper validation");
+			break;
+		case "performance":
+			deliverables.push("Implement performance optimization");
+			break;
+		case "documentation":
+			deliverables.push("Update documentation with accurate information");
+			break;
+		default:
+			deliverables.push("Implement the requested enhancement");
+	}
+
+	// Component-specific deliverable
+	if (hasFiles) {
+		const firstFile = components.find((c) => c.includes("."));
+		deliverables.push(`Update \`${firstFile}\` with corrected logic`);
+	} else if (components.length > 0) {
+		deliverables.push(`Update ${components[0]} with required changes`);
+	}
+
+	// Type-specific additional deliverable
+	if (classification.type === "security") {
+		deliverables.push("Add input validation/sanitization as needed");
+	} else if (classification.type === "performance") {
+		deliverables.push("Verify performance improvement with benchmarks");
+	}
+
+	return deliverables.slice(0, 3);
+}
+
+/**
+ * Generate success criteria based on classification.
+ */
+function generateFixSuccessCriteria(classification: IssueClassification, issue: ParsedIssue): string[] {
+	const criteria: string[] = [];
+
+	// Universal criteria
+	criteria.push(`Issue #${issue.number} scenario no longer reproduces`);
+	criteria.push("All existing tests pass");
+
+	// Type-specific criteria
+	switch (classification.type) {
+		case "bug":
+		case "regression":
+			criteria.push("Regression test added and passing");
+			break;
+		case "security":
+			criteria.push("No security warnings from static analysis");
+			criteria.push("Vulnerability is no longer exploitable");
+			break;
+		case "performance":
+			criteria.push("Performance improvement is measurable");
+			break;
+		case "documentation":
+			criteria.push("Documentation is accurate and complete");
+			break;
+	}
+
+	return criteria.slice(0, 4);
+}
+
+/**
+ * Generate test file paths for components.
+ */
+function generateTestFilePaths(components: string[], language?: string): string[] {
+	const testFiles: string[] = [];
+	const isPython = language === "python";
+
+	for (const component of components) {
+		if (component.includes(".")) {
+			// It's a file path
+			const baseName = component.replace(/\.(ts|js|py|tsx|jsx)$/, "");
+			const fileName = baseName.split("/").pop() || baseName;
+			if (isPython) {
+				testFiles.push(`tests/test_${fileName}.py`);
+			} else {
+				testFiles.push(`${baseName}.test.ts`);
+			}
+		}
+	}
+
+	return testFiles.slice(0, 2);
+}
+
+/**
+ * Generate remediation subtasks from issue content.
+ */
+function generateRemediationSubtasks(
+	issue: ParsedIssue,
+	classification: IssueClassification,
+	subtaskBaseId: string,
+	projectType?: string,
+	language?: string
+): RemediationSubtask[] {
+	const subtasks: RemediationSubtask[] = [];
+	const components = classification.affectedComponents;
+
+	// Primary fix subtask (always present)
+	subtasks.push({
+		id: `${subtaskBaseId}.1`,
+		title: `Fix: ${issue.title.slice(0, 50)}${issue.title.length > 50 ? "..." : ""}`,
+		problemSummary: extractProblemSummary(issue.body),
+		rootCause: extractRootCause(issue.body, issue.comments),
+		deliverables: generateFixDeliverables(classification, components, language),
+		filesToModify: components.filter((c) => c.includes(".")),
+		successCriteria: generateFixSuccessCriteria(classification, issue),
+	});
+
+	// Add test subtask for bugs and regressions
+	if (classification.type === "bug" || classification.type === "regression") {
+		subtasks.push({
+			id: `${subtaskBaseId}.2`,
+			title: `Test: Add regression test for #${issue.number}`,
+			problemSummary: "Ensure this issue doesn't recur",
+			deliverables: [`Add test case reproducing issue #${issue.number} scenario`, "Verify fix with the new test", "Ensure all related tests pass"],
+			filesToModify: generateTestFilePaths(components, language),
+			successCriteria: ["New test fails without fix, passes with fix", "All existing tests still pass", "Coverage maintained or improved"],
+		});
+	}
+
+	// Add verification subtask for critical/security issues
+	if (classification.severity === "critical" || classification.type === "security") {
+		const lastId = subtasks.length + 1;
+		subtasks.push({
+			id: `${subtaskBaseId}.${lastId}`,
+			title: "Verify: Manual testing and review",
+			problemSummary: "Ensure fix is complete and secure",
+			deliverables: ["Manual verification of fix in development", "Security review if applicable", "Update documentation if behavior changed"],
+			filesToModify: [],
+			successCriteria: ["Fix verified in development environment", "No security regressions introduced", "Ready for deployment"],
+		});
+	}
+
+	return subtasks;
+}
+
+/**
+ * Generate a complete remediation task from GitHub issue content.
+ */
+export function generateRemediationTask(issue: ParsedIssue, existingPlanContent?: string, projectType?: string, language?: string): RemediationTask {
+	const classification = classifyIssue(issue);
+	const taskIds = generateRemediationTaskId(existingPlanContent || "");
+
+	const subtasks = generateRemediationSubtasks(issue, classification, taskIds.subtaskBaseId, projectType, language);
+
+	return {
+		phaseId: taskIds.phaseId,
+		taskId: taskIds.taskId,
+		title: issue.title,
+		issueNumber: issue.number,
+		issueUrl: issue.url,
+		type: classification.type,
+		severity: classification.severity,
+		subtasks,
+	};
+}
+
+/**
+ * Format remediation task as markdown for DEVELOPMENT_PLAN.md or REMEDIATION_PLAN.md.
+ */
+export function formatRemediationPlan(task: RemediationTask, mode: "append" | "standalone"): string {
+	const severityIcon = {
+		critical: "🔴",
+		high: "🟠",
+		medium: "🟡",
+		low: "🔵",
+	}[task.severity];
+
+	const typeLabel = {
+		bug: "Bug Fix",
+		enhancement: "Enhancement",
+		regression: "Regression Fix",
+		security: "Security Fix",
+		performance: "Performance Fix",
+		documentation: "Documentation",
+	}[task.type];
+
+	// Generate branch name
+	const branchSlug = task.title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.slice(0, 30)
+		.replace(/-+$/, "");
+
+	// Format subtasks
+	const subtasksMd = task.subtasks
+		.map(
+			(subtask) => `
+**Subtask ${subtask.id}: ${subtask.title} (Quick Fix)**
+
+**Issue Reference**: #${task.issueNumber}${task.issueUrl ? ` ([view](${task.issueUrl}))` : ""}
+
+**Problem Summary**:
+${subtask.problemSummary}
+
+${subtask.rootCause ? `**Root Cause** (if known):\n${subtask.rootCause}\n` : ""}
+**Deliverables**:
+${subtask.deliverables.map((d) => `- [ ] ${d}`).join("\n")}
+
+**Files to Modify**:
+${subtask.filesToModify.length > 0 ? subtask.filesToModify.map((f) => `- \`${f}\``).join("\n") : "- (determine from investigation)"}
+
+**Success Criteria**:
+${subtask.successCriteria.map((c) => `- [ ] ${c}`).join("\n")}
+
+**Completion Notes**:
+- **Fix Applied**: (describe what was changed)
+- **Tests**: (number of tests added/modified)
+- **Verified**: (how the fix was verified)
+
+---`
+		)
+		.join("\n");
+
+	// Build full output
+	const header =
+		mode === "standalone"
+			? `# Remediation Plan - Issue #${task.issueNumber}
+
+> Generated from GitHub issue. Execute subtasks in order.
+
+`
+			: "";
+
+	return `${header}## Phase ${task.phaseId}: ${task.title} (Issue #${task.issueNumber})
+
+**Type**: ${severityIcon} ${typeLabel}
+**Severity**: ${task.severity}
+**Goal**: Resolve issue #${task.issueNumber}
+
+### Task ${task.taskId}: ${task.title}
+
+**Git**: Create branch \`fix/${task.issueNumber}-${branchSlug}\` from main when starting.
+
+${subtasksMd}
+
+### Task ${task.taskId} Complete - Merge Checklist
+- [ ] All subtasks completed
+- [ ] All tests pass
+- [ ] Issue verified as resolved
+- [ ] Squash merge to main
+- [ ] Close issue #${task.issueNumber}
+`;
+}

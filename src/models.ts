@@ -109,6 +109,85 @@ export const DevelopmentPlanSchema = z.object({
 
 export type DevelopmentPlan = z.infer<typeof DevelopmentPlanSchema>;
 
+// ============================================================================
+// GITHUB ISSUE & REMEDIATION SCHEMAS
+// ============================================================================
+
+/**
+ * Schema for GitHub issue JSON from `gh issue view <number> --json title,body,labels,comments`
+ */
+export const ParsedIssueSchema = z.object({
+	number: z.number(),
+	title: z.string(),
+	body: z.string(),
+	labels: z
+		.array(
+			z.object({
+				name: z.string(),
+				description: z.string().optional(),
+			})
+		)
+		.optional()
+		.default([]),
+	comments: z
+		.array(
+			z.object({
+				author: z.object({ login: z.string() }).or(z.string()),
+				body: z.string(),
+				createdAt: z.string().optional(),
+			})
+		)
+		.optional()
+		.default([]),
+	state: z.enum(["OPEN", "CLOSED"]).optional(),
+	url: z.string().optional(),
+});
+
+export type ParsedIssue = z.infer<typeof ParsedIssueSchema>;
+
+/**
+ * Issue classification for determining type and severity
+ */
+export const IssueClassificationSchema = z.object({
+	type: z.enum(["bug", "enhancement", "regression", "security", "performance", "documentation"]),
+	severity: z.enum(["critical", "high", "medium", "low"]),
+	affectedComponents: z.array(z.string()),
+	suggestedApproach: z.string(),
+});
+
+export type IssueClassification = z.infer<typeof IssueClassificationSchema>;
+
+/**
+ * Remediation subtask - lighter weight than full project subtasks
+ */
+export const RemediationSubtaskSchema = z.object({
+	id: z.string().regex(/^R\.\d+\.\d+\.\d+$/, "Remediation subtask ID must be in format R.X.Y.Z"),
+	title: z.string(),
+	problemSummary: z.string(),
+	rootCause: z.string().optional(),
+	deliverables: z.array(z.string()).min(1).max(3),
+	filesToModify: z.array(z.string()).default([]),
+	successCriteria: z.array(z.string()),
+});
+
+export type RemediationSubtask = z.infer<typeof RemediationSubtaskSchema>;
+
+/**
+ * Remediation task generated from a GitHub issue
+ */
+export const RemediationTaskSchema = z.object({
+	phaseId: z.string().regex(/^R\.\d+$/, "Remediation phase ID must be in format R.X"),
+	taskId: z.string().regex(/^R\.\d+\.\d+$/, "Remediation task ID must be in format R.X.Y"),
+	title: z.string(),
+	issueNumber: z.number(),
+	issueUrl: z.string().optional(),
+	type: z.enum(["bug", "enhancement", "regression", "security", "performance", "documentation"]),
+	severity: z.enum(["critical", "high", "medium", "low"]),
+	subtasks: z.array(RemediationSubtaskSchema),
+});
+
+export type RemediationTask = z.infer<typeof RemediationTaskSchema>;
+
 // Validation helpers
 export function validateSubtask(subtask: Subtask): string[] {
 	const errors: string[] = [];

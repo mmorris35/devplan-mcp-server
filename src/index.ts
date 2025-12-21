@@ -21,6 +21,12 @@ import {
 	updateProgress,
 	validatePlan,
 	findRelevantLessons,
+	// Issue-to-task system
+	parseIssueContent,
+	classifyIssue,
+	extractAffectedComponents,
+	generateRemediationTask,
+	formatRemediationPlan,
 } from "./generators";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
 
@@ -890,6 +896,169 @@ ${extractedLessons.map((l, i) => `---
 						},
 					],
 				};
+			}
+		);
+
+		// ====================================================================
+		// ISSUE-TO-TASK TOOLS (Post-release remediation planning)
+		// ====================================================================
+
+		// Tool 17: devplan_parse_issue - Analyze a GitHub issue
+		this.server.tool(
+			"devplan_parse_issue",
+			"Parse and analyze a GitHub issue to extract structured remediation requirements. Use with: `gh issue view <number> --json number,title,body,labels,comments,url`",
+			{
+				issue_content: z.string().describe("JSON output from `gh issue view <number> --json number,title,body,labels,comments,url`"),
+			},
+			async ({ issue_content }) => {
+				try {
+					const issue = parseIssueContent(issue_content);
+					const classification = classifyIssue(issue);
+					const components = extractAffectedComponents(issue.body);
+
+					const severityIcon = {
+						critical: "🔴",
+						high: "🟠",
+						medium: "🟡",
+						low: "🔵",
+					}[classification.severity];
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `# Issue #${issue.number} Analysis
+
+**Title**: ${issue.title}
+**Type**: ${classification.type}
+**Severity**: ${severityIcon} ${classification.severity}
+**State**: ${issue.state || "OPEN"}
+
+## Affected Components
+${components.length > 0 ? components.map((c) => `- \`${c}\``).join("\n") : "- (none detected - investigate codebase)"}
+
+## Suggested Approach
+${classification.suggestedApproach}
+
+---
+
+**Next step**: Use \`devplan_issue_to_task\` to generate a full remediation task from this issue.
+
+Example:
+\`\`\`
+devplan_issue_to_task with:
+  issue_content: <same JSON>
+  mode: "append" (to add to existing DEVELOPMENT_PLAN.md)
+  existing_plan: <content of DEVELOPMENT_PLAN.md>
+\`\`\``,
+							},
+						],
+					};
+				} catch (e) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error parsing issue: ${e instanceof Error ? e.message : "Unknown error"}
+
+**Expected format**: JSON from \`gh issue view <number> --json number,title,body,labels,comments,url\`
+
+Example:
+\`\`\`bash
+gh issue view 803 --json number,title,body,labels,comments,url
+\`\`\``,
+							},
+						],
+					};
+				}
+			}
+		);
+
+		// Tool 18: devplan_issue_to_task - Convert issue to remediation task
+		this.server.tool(
+			"devplan_issue_to_task",
+			"Convert a GitHub issue into a remediation task with subtasks. Returns markdown suitable for appending to DEVELOPMENT_PLAN.md or creating a standalone REMEDIATION_PLAN.md.",
+			{
+				issue_content: z.string().describe("JSON output from `gh issue view <number> --json number,title,body,labels,comments,url`"),
+				existing_plan: z.string().optional().describe("Existing DEVELOPMENT_PLAN.md content. If provided, generates task IDs that don't conflict with existing R.X phases."),
+				mode: z.enum(["append", "standalone"]).default("standalone").describe("'append' generates content to add to existing plan, 'standalone' creates full REMEDIATION_PLAN.md"),
+				project_type: z.string().optional().describe("Project type for context (cli, web_app, api, library)"),
+				language: z.string().optional().describe("Primary language (python, typescript) for appropriate test patterns"),
+			},
+			async ({ issue_content, existing_plan, mode, project_type, language }) => {
+				try {
+					const issue = parseIssueContent(issue_content);
+					const task = generateRemediationTask(issue, existing_plan, project_type, language);
+					const markdown = formatRemediationPlan(task, mode);
+
+					// Check for relevant lessons
+					const env = (this as unknown as { env: Env }).env;
+					let lessonsNote = "";
+					try {
+						const storedLessons = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+						if (storedLessons && storedLessons.length > 0) {
+							const relevantLessons = findRelevantLessons(task.title, task.subtasks.flatMap((s) => s.deliverables), storedLessons, project_type || "cli");
+							if (relevantLessons.length > 0) {
+								lessonsNote = `\n\n📚 **Relevant lessons learned** (${relevantLessons.length}):\n${relevantLessons.map((l) => `- **${l.pattern}**: ${l.fix}`).join("\n")}\n\nConsider incorporating these into your fix approach.`;
+							}
+						}
+					} catch {
+						// No lessons or KV error - continue without
+					}
+
+					const actionText =
+						mode === "append"
+							? `## Action Required
+
+Append the following content to your **DEVELOPMENT_PLAN.md** file.
+
+**Recommended location**: Before the "## Git Workflow" section (if present), or at the end of the file.`
+							: `## Action Required
+
+Write the following content to a new **REMEDIATION_PLAN.md** file.`;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `# Generated Remediation Task for Issue #${task.issueNumber}
+
+${actionText}
+${lessonsNote}
+
+---
+
+${markdown}
+
+---
+
+## Execution Prompt
+
+After adding the plan, execute the first subtask with:
+
+\`\`\`
+Please read CLAUDE.md and ${mode === "append" ? "DEVELOPMENT_PLAN.md" : "REMEDIATION_PLAN.md"} completely, then implement subtask ${task.subtasks[0].id}, following all rules and marking checkboxes as you complete each item.
+\`\`\``,
+							},
+						],
+					};
+				} catch (e) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error generating remediation task: ${e instanceof Error ? e.message : "Unknown error"}
+
+**Expected format**: JSON from \`gh issue view <number> --json number,title,body,labels,comments,url\`
+
+Example:
+\`\`\`bash
+gh issue view 803 --json number,title,body,labels,comments,url
+\`\`\``,
+							},
+						],
+					};
+				}
 			}
 		);
 	}
