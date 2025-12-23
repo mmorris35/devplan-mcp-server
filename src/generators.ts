@@ -3254,6 +3254,8 @@ export interface Lesson {
 	projectTypes: string[];  // Which project types this applies to (e.g., ["cli", "api"])
 	severity: "critical" | "warning" | "info";
 	createdAt: string;       // ISO date string
+	archived?: boolean;      // Whether lesson is archived (excluded from plan generation)
+	archivedAt?: string;     // When the lesson was archived (ISO date string)
 }
 
 /**
@@ -3268,31 +3270,76 @@ export function generateLessonId(): string {
  */
 export function formatLesson(lesson: Lesson): string {
 	const severityIcon = lesson.severity === "critical" ? "🔴" : lesson.severity === "warning" ? "🟡" : "🔵";
-	return `${severityIcon} **${lesson.pattern}**
+	const archivedTag = lesson.archived ? " [ARCHIVED]" : "";
+	const archivedLine = lesson.archivedAt ? `\n- **Archived**: ${lesson.archivedAt}` : "";
+	return `${severityIcon} **${lesson.pattern}**${archivedTag}
 - **Issue**: ${lesson.issue}
 - **Root Cause**: ${lesson.rootCause}
 - **Fix**: ${lesson.fix}
 - **Applies to**: ${lesson.projectTypes.join(", ") || "all"}
-- **Added**: ${lesson.createdAt}`;
+- **Added**: ${lesson.createdAt}${archivedLine}
+- **ID**: \`${lesson.id}\``;
 }
 
 /**
  * Filter lessons relevant to a specific project type.
+ * By default, excludes archived lessons.
  */
-export function filterLessonsForProject(lessons: Lesson[], projectType: string): Lesson[] {
+export function filterLessonsForProject(
+	lessons: Lesson[],
+	projectType: string,
+	includeArchived: boolean = false
+): Lesson[] {
 	const normalizedType = projectType.toLowerCase().replace(/[\s-]/g, "_");
-	return lessons.filter(lesson =>
-		lesson.projectTypes.length === 0 || // Empty means applies to all
-		lesson.projectTypes.some(t => t.toLowerCase().replace(/[\s-]/g, "_") === normalizedType)
-	);
+	return lessons.filter(lesson => {
+		// Exclude archived lessons unless explicitly requested
+		if (!includeArchived && lesson.archived) {
+			return false;
+		}
+		// Empty projectTypes means applies to all
+		return lesson.projectTypes.length === 0 ||
+			lesson.projectTypes.some(t => t.toLowerCase().replace(/[\s-]/g, "_") === normalizedType);
+	});
+}
+
+/**
+ * Severity levels ordered from highest to lowest priority.
+ */
+const SEVERITY_ORDER: Record<Lesson["severity"], number> = {
+	critical: 0,
+	warning: 1,
+	info: 2,
+};
+
+/**
+ * Filter lessons by minimum severity level.
+ * Returns lessons with severity >= minSeverity.
+ * 'critical' = only critical, 'warning' = critical + warning, 'info' = all
+ */
+export function filterLessonsBySeverity(
+	lessons: Lesson[],
+	minSeverity: Lesson["severity"]
+): Lesson[] {
+	const minLevel = SEVERITY_ORDER[minSeverity];
+	return lessons.filter(lesson => SEVERITY_ORDER[lesson.severity] <= minLevel);
 }
 
 /**
  * Generate a "lessons learned" safeguards section for a development plan.
  * This is included in generatePlan() when relevant lessons exist.
  */
-export function generateLessonsSafeguards(lessons: Lesson[], projectType: string): string {
-	const relevantLessons = filterLessonsForProject(lessons, projectType);
+export function generateLessonsSafeguards(
+	lessons: Lesson[],
+	projectType: string,
+	minSeverity?: Lesson["severity"]
+): string {
+	// Filter by project type (excludes archived by default)
+	let relevantLessons = filterLessonsForProject(lessons, projectType);
+
+	// Apply severity filter if specified
+	if (minSeverity) {
+		relevantLessons = filterLessonsBySeverity(relevantLessons, minSeverity);
+	}
 
 	if (relevantLessons.length === 0) {
 		return "";
