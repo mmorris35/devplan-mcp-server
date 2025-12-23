@@ -7,6 +7,7 @@ import {
 	createBrief,
 	detectTechConflicts,
 	filterLessonsForProject,
+	filterLessonsBySeverity,
 	formatLesson,
 	generateClaudeMd,
 	generateExecutorAgent,
@@ -466,8 +467,10 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
+				min_severity: z.enum(["critical", "warning", "info"]).optional()
+					.describe("Minimum severity of lessons to include. 'critical' = only critical, 'warning' = critical + warning, 'info' = all (default)"),
 			},
-			async ({ brief_content }) => {
+			async ({ brief_content, min_severity }) => {
 				// Get lessons from KV first - they're used for both:
 				// 1. Injecting into subtask success criteria
 				// 2. Adding safeguards section
@@ -480,11 +483,20 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 				try {
 					const storedLessons = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
 					if (storedLessons && storedLessons.length > 0) {
-						lessons = storedLessons;
 						const brief = parseBrief(brief_content);
 						const projectType = brief.projectType || "cli";
-						lessonsSection = generateLessonsSafeguards(lessons, projectType);
-						lessonsCount = filterLessonsForProject(lessons, projectType).length;
+
+						// Filter by project type (excludes archived by default)
+						let filteredLessons = filterLessonsForProject(storedLessons, projectType);
+
+						// Apply severity filter if specified
+						if (min_severity) {
+							filteredLessons = filterLessonsBySeverity(filteredLessons, min_severity);
+						}
+
+						lessons = filteredLessons;
+						lessonsSection = generateLessonsSafeguards(storedLessons, projectType, min_severity);
+						lessonsCount = filteredLessons.length;
 					}
 				} catch {
 					// No lessons yet
@@ -511,8 +523,11 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 					}
 				}
 
+				const severityNote = min_severity && min_severity !== "info"
+					? ` (filtered to ${min_severity}+ severity)`
+					: "";
 				const lessonsNote = lessonsCount > 0
-					? `\n\n📚 **${lessonsCount} lessons learned** incorporated: ${injectedCount > 0 ? `${injectedCount} injected into subtask success criteria` : "added as safeguards section"}.`
+					? `\n\n📚 **${lessonsCount} lessons learned**${severityNote} incorporated: ${injectedCount > 0 ? `${injectedCount} injected into subtask success criteria` : "added as safeguards section"}.`
 					: "";
 
 				return {
@@ -832,11 +847,12 @@ This lesson will be included in future plan generation for ${lesson.projectTypes
 		// Tool 14: devplan_list_lessons
 		this.server.tool(
 			"devplan_list_lessons",
-			"List all lessons learned from previous projects. Optionally filter by project type.",
+			"List all lessons learned from previous projects. Optionally filter by project type or include archived lessons.",
 			{
 				project_type: z.string().optional().describe("Filter lessons for a specific project type (e.g., 'cli', 'api', 'web_app')"),
+				include_archived: z.boolean().default(false).describe("Include archived lessons in the list"),
 			},
-			async ({ project_type }) => {
+			async ({ project_type, include_archived }) => {
 				// Get lessons from KV
 				const env = (this as unknown as { env: Env }).env;
 				let lessons: Lesson[] = [];
@@ -873,10 +889,20 @@ Example workflow:
 					};
 				}
 
-				// Filter by project type if specified
-				const filteredLessons = project_type
-					? filterLessonsForProject(lessons, project_type)
-					: lessons;
+				// Count archived vs active
+				const archivedCount = lessons.filter(l => l.archived).length;
+				const activeCount = lessons.length - archivedCount;
+
+				// Filter by project type and archived status
+				let filteredLessons: Lesson[];
+				if (project_type) {
+					filteredLessons = filterLessonsForProject(lessons, project_type, include_archived);
+				} else if (!include_archived) {
+					// Filter out archived lessons even without project type filter
+					filteredLessons = lessons.filter(l => !l.archived);
+				} else {
+					filteredLessons = lessons;
+				}
 
 				// Group by severity
 				const critical = filteredLessons.filter(l => l.severity === "critical");
@@ -884,9 +910,12 @@ Example workflow:
 				const info = filteredLessons.filter(l => l.severity === "info");
 
 				const sections: string[] = [];
-				sections.push(`# 📚 Lessons Learned${project_type ? ` (filtered for ${project_type})` : ""}
+				const filterNote = project_type ? ` (filtered for ${project_type})` : "";
+				const archivedNote = !include_archived && archivedCount > 0 ? ` (excluding ${archivedCount} archived)` : "";
 
-**Total**: ${filteredLessons.length} lessons${project_type && filteredLessons.length !== lessons.length ? ` (${lessons.length} total)` : ""}
+				sections.push(`# 📚 Lessons Learned${filterNote}${archivedNote}
+
+**Total**: ${filteredLessons.length} lessons shown | ${activeCount} active | ${archivedCount} archived
 `);
 
 				if (critical.length > 0) {
@@ -905,6 +934,12 @@ ${warnings.map(l => formatLesson(l)).join("\n\n")}
 					sections.push(`## 🔵 Info (${info.length})
 ${info.map(l => formatLesson(l)).join("\n\n")}
 `);
+				}
+
+				// Add tip about archived lessons
+				if (!include_archived && archivedCount > 0) {
+					sections.push(`---
+💡 **Tip**: Use \`include_archived: true\` to see ${archivedCount} archived lesson(s).`);
 				}
 
 				return {
@@ -1005,7 +1040,85 @@ ${toDelete.map(l => `- ${l.pattern}`).join("\n")}
 			}
 		);
 
-		// Tool 16: devplan_extract_lessons_from_report
+		// Tool 16: devplan_archive_lesson
+		this.server.tool(
+			"devplan_archive_lesson",
+			"Archive or unarchive a lesson. Archived lessons are preserved but excluded from plan generation. Use this to retire old lessons without deleting them.",
+			{
+				lesson_id: z.string().describe("The lesson ID to archive/unarchive (e.g., 'lesson_1234567890_abc123')"),
+				archive: z.boolean().default(true).describe("true to archive, false to unarchive"),
+			},
+			async ({ lesson_id, archive }) => {
+				const env = (this as unknown as { env: Env }).env;
+				let lessons: Lesson[] = [];
+				try {
+					const existing = await env.DEVPLAN_KV.get<Lesson[]>("lessons", "json");
+					if (existing) {
+						lessons = existing;
+					}
+				} catch {
+					// No lessons
+				}
+
+				if (lessons.length === 0) {
+					return {
+						content: [{ type: "text", text: "📚 No lessons stored yet." }],
+					};
+				}
+
+				// Find the lesson
+				const lessonIndex = lessons.findIndex(l => l.id === lesson_id);
+				if (lessonIndex === -1) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Lesson with ID "${lesson_id}" not found.\n\nUse \`devplan_list_lessons\` to see all available lessons and their IDs.`,
+							},
+						],
+					};
+				}
+
+				const lesson = lessons[lessonIndex];
+				const wasArchived = lesson.archived ?? false;
+
+				if (wasArchived === archive) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `ℹ️ Lesson is already ${archive ? "archived" : "active"}.\n\n${formatLesson(lesson)}`,
+							},
+						],
+					};
+				}
+
+				// Update the lesson
+				lessons[lessonIndex] = {
+					...lesson,
+					archived: archive,
+					archivedAt: archive ? new Date().toISOString().split("T")[0] : undefined,
+				};
+
+				await env.DEVPLAN_KV.put("lessons", JSON.stringify(lessons));
+
+				const action = archive ? "archived" : "unarchived";
+				return {
+					content: [
+						{
+							type: "text",
+							text: `✅ Lesson ${action} successfully!\n\n${formatLesson(lessons[lessonIndex])}\n\n${
+								archive
+									? "This lesson will no longer be included in plan generation."
+									: "This lesson is now active and will be included in plan generation."
+							}`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 17: devplan_extract_lessons_from_report
 		this.server.tool(
 			"devplan_extract_lessons_from_report",
 			"Parse a verification report and extract suggested lessons. Returns pre-filled lesson data that can be reviewed and saved with devplan_add_lesson.",
@@ -1166,7 +1279,7 @@ ${extractedLessons.map((l, i) => `---
 		// ISSUE-TO-TASK TOOLS (Post-release remediation planning)
 		// ====================================================================
 
-		// Tool 17: devplan_parse_issue - Analyze a GitHub issue
+		// Tool 18: devplan_parse_issue - Analyze a GitHub issue
 		this.server.tool(
 			"devplan_parse_issue",
 			"Parse and analyze a GitHub issue to extract structured remediation requirements. Use with: `gh issue view <number> --json number,title,body,labels,comments,url`",
@@ -1237,7 +1350,7 @@ gh issue view 803 --json number,title,body,labels,comments,url
 			}
 		);
 
-		// Tool 18: devplan_issue_to_task - Convert issue to remediation task
+		// Tool 19: devplan_issue_to_task - Convert issue to remediation task
 		this.server.tool(
 			"devplan_issue_to_task",
 			"Convert a GitHub issue into a remediation task with subtasks. Returns markdown suitable for appending to DEVELOPMENT_PLAN.md or creating a standalone REMEDIATION_PLAN.md.",
