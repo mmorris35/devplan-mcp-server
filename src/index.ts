@@ -395,13 +395,34 @@ For each feature: PASS/FAIL with evidence
 
 ---
 
-## Execution Prompt
+## 📋 Full Workflow (Tell the User)
 
-Tell the user to execute subtasks with:
+After planning is complete, explain this workflow to the user:
 
+### Phase 1: Build (Executor Agent)
 \`\`\`
 Use the {project}-executor agent to execute subtask [X.Y.Z]
 \`\`\`
+- Execute subtasks one at a time, or let the executor run through them
+- Watch it work, or step away and let it build
+- Check \`devplan_progress_summary\` to see completion status
+
+### Phase 2: Verify (CRITICAL - Don't Skip!)
+\`\`\`
+Use the {project}-verifier agent to validate the application against PROJECT_BRIEF.md
+\`\`\`
+- **Run the verifier AFTER all subtasks are complete**
+- The verifier will try to break the application and find gaps
+- Any issues found become lessons learned for future projects
+
+### Phase 3: Capture Lessons
+\`\`\`
+Use devplan_extract_lessons_from_report with the verification report
+\`\`\`
+- Extract lessons from any issues the verifier found
+- These get injected into future plans to prevent the same mistakes
+
+**Remind the user**: "After the executor finishes building, don't forget to run the verifier!"
 
 ---
 
@@ -825,7 +846,25 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 
 				const nextAction = summary.nextSubtask
 					? `**Next Subtask**: ${summary.nextSubtask.id} - ${summary.nextSubtask.title}\n\nTo continue, use this prompt:\n\`\`\`\nPlease read CLAUDE.md and DEVELOPMENT_PLAN.md completely, then implement subtask [${summary.nextSubtask.id}], following all rules and marking checkboxes as you complete each item.\n\`\`\``
-					: "**All subtasks complete!** Ready for final review and release.";
+					: `**🎉 All subtasks complete!**
+
+## ⚠️ IMPORTANT: Run the Verifier
+
+Before considering this project done, you MUST run the verifier agent:
+
+\`\`\`
+Use the {project}-verifier agent to validate the application against PROJECT_BRIEF.md
+\`\`\`
+
+The verifier will:
+- Smoke test the application
+- Verify each MVP feature works
+- Try to break it with edge cases
+- Produce a verification report
+
+Any issues found can be captured as lessons learned using \`devplan_extract_lessons_from_report\`.
+
+**Don't skip this step!** The verifier catches issues before users do.`;
 
 				const output = `# Development Plan Progress Summary
 
