@@ -58,7 +58,27 @@ export class DevPlanMCP extends McpAgent {
 						text: `# DevPlan Project Builder
 
 You are about to create a development plan using the ClaudeCode-DevPlanBuilder methodology.
-This guide contains everything you need - no external fetches required.
+
+---
+
+## ⚠️ CRITICAL: Study the HelloCLI Example First
+
+**Before proceeding, you MUST fetch and study the complete HelloCLI example.** This is NOT optional - it teaches you what "Haiku-executable" means:
+
+1. **Fetch the example DEVELOPMENT_PLAN.md**:
+   \`\`\`
+   WebFetch: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+   \`\`\`
+
+2. **Study what makes it Haiku-executable**:
+   - Every subtask has **complete, copy-pasteable code blocks** (not pseudocode)
+   - Every deliverable has **exact file paths** (\`src/hello_cli/main.py\`)
+   - Every subtask has **verification commands** that prove completion
+   - No inference required - Haiku executes this mechanically
+
+3. **Key insight**: Your generated plans must match this quality level. If a subtask doesn't have working code that Haiku can copy-paste, it's NOT Haiku-executable.
+
+**After studying the example, proceed with the interview below.**
 
 ---
 
@@ -197,12 +217,49 @@ Add after each task's subtasks:
 - [ ] Delete branch: \`git branch -d feature/X-Y-name\`
 \`\`\`
 
+### 🎯 Haiku-Executable Requirement
+
+> **Every subtask MUST contain complete, working code that Haiku can copy-paste and execute.**
+> If you're writing \`{placeholder}\` or \`// TODO\`, it's NOT Haiku-executable.
+
+**What Haiku-executable looks like** (from HelloCLI example):
+\`\`\`markdown
+**Deliverables:**
+- [ ] \`src/hello_cli/main.py\` - Entry point
+
+**Complete Code:**
+
+Create file \`src/hello_cli/main.py\`:
+\\\`\\\`\\\`python
+import argparse
+from hello_cli.greeter import Greeter
+
+def main():
+    parser = argparse.ArgumentParser(description="Hello CLI")
+    parser.add_argument("name", help="Name to greet")
+    args = parser.parse_args()
+
+    greeter = Greeter()
+    print(greeter.greet(args.name))
+
+if __name__ == "__main__":
+    main()
+\\\`\\\`\\\`
+
+**Verification:**
+\\\`\\\`\\\`bash
+python -m hello_cli world
+# Expected: "Hello, world!"
+\\\`\\\`\\\`
+\`\`\`
+
 ### Critical Rules
 
 1. **Write complete code blocks** - Claude Haiku will execute this plan; it cannot infer missing details
-2. **Git workflow**: One branch per TASK (not subtask). Commit after each subtask. Squash merge when task completes.
-3. **3-7 deliverables** per subtask, each with explicit checkbox
-4. **2-4 hour scope** per subtask maximum
+2. **Include verification commands** - Show exact commands to prove each deliverable works
+3. **Git workflow**: One branch per TASK (not subtask). Commit after each subtask. Squash merge when task completes.
+4. **3-7 deliverables** per subtask, each with explicit checkbox
+5. **2-4 hour scope** per subtask maximum
 
 ---
 
@@ -350,13 +407,20 @@ Use the {project}-executor agent to execute subtask [X.Y.Z]
 
 ## Reference
 
-For complete examples, see: https://github.com/mmorris35/ClaudeCode-DevPlanBuilder/tree/main/examples/hello-cli
+**If your generated plan doesn't match the quality of these examples, go back and fix it:**
+
+- **DEVELOPMENT_PLAN.md** (the gold standard): https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+- **PROJECT_BRIEF.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/PROJECT_BRIEF.md
+- **CLAUDE.md**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md
+- **Executor Agent**: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/.claude/agents/hello-cli-executor.md
 
 ---
 
 ## Next Step
 
-Start by asking the user: **"What's your project name?"**`,
+**First**: Fetch and study the HelloCLI DEVELOPMENT_PLAN.md example (see CRITICAL section above).
+
+**Then**: Start by asking the user: **"What's your project name?"**`,
 					},
 				],
 			})
