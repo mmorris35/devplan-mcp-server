@@ -657,7 +657,8 @@ ${tasksSection}`;
 		.join("\n\n---\n\n");
 
 	// Add feature-specific phases based on the project's MVP features
-	const featurePhasesSection = generateFeaturePhases(brief);
+	// Pass lessons and project type so lessons can be injected into feature phases
+	const featurePhasesSection = generateFeaturePhases(brief, lessons, projectType);
 
 	// Add deferred phases for nice-to-have features (Phase X.5 v2)
 	const deferredPhasesSection = generateDeferredPhases(brief);
@@ -1830,8 +1831,11 @@ function getFeatureShortTitle(feature: string): string {
 /**
  * Generate additional phases based on the project's specific MVP features.
  * Now with detailed, paint-by-numbers implementation guidance.
+ * @param brief - The parsed project brief
+ * @param lessons - Optional lessons to inject into success criteria
+ * @param projectType - The project type for lesson filtering
  */
-function generateFeaturePhases(brief: ProjectBrief): string {
+function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectType?: string): string {
 	if (brief.keyFeatures.length === 0) {
 		return "";
 	}
@@ -1863,7 +1867,25 @@ function generateFeaturePhases(brief: ProjectBrief): string {
 			impl.filesToModify.length > 0
 				? impl.filesToModify.map((f) => `- \`${f}\``).join("\n")
 				: "- None";
-		const successCriteria = impl.successCriteria.map((c) => `- [ ] ${c}`).join("\n");
+		// Base success criteria from feature implementation
+		const baseSuccessCriteria = impl.successCriteria.map((c) => `- [ ] ${c}`);
+
+		// Add lesson-based success criteria if lessons provided
+		let lessonCriteria: string[] = [];
+		if (lessons && lessons.length > 0 && projectType) {
+			const relevantLessons = findRelevantLessons(
+				featureShortTitle,
+				impl.deliverables,
+				lessons,
+				projectType
+			);
+			if (relevantLessons.length > 0) {
+				lessonCriteria = generateLessonSuccessCriteria(relevantLessons)
+					.map(c => `- [ ] ${c}`);
+			}
+		}
+
+		const successCriteria = [...baseSuccessCriteria, ...lessonCriteria].join("\n");
 		// Technology Decisions are mandatory - provide default if not specified
 		const techDecisionsContent = impl.techDecisions && impl.techDecisions.length > 0
 			? impl.techDecisions.map((t) => `- ${t}`).join("\n")
@@ -3446,6 +3468,7 @@ export function categorizeLesson(lesson: Lesson): string[] {
 /**
  * Find lessons that are relevant to a specific subtask.
  * Returns lessons whose categories overlap with the subtask's categories.
+ * Critical lessons are always included regardless of category match.
  */
 export function findRelevantLessons(
 	subtaskTitle: string,
@@ -3456,13 +3479,23 @@ export function findRelevantLessons(
 	const filteredLessons = filterLessonsForProject(lessons, projectType);
 	const subtaskCategories = categorizeSubtask(subtaskTitle, subtaskDeliverables);
 
-	if (subtaskCategories.length === 0) {
-		return [];
-	}
-
 	return filteredLessons.filter(lesson => {
-		const lessonCategories = categorizeLesson(lesson);
+		// Critical lessons are always included - they're too important to miss
+		if (lesson.severity === "critical") {
+			return true;
+		}
+
+		// If subtask has no categories, only include critical lessons (already handled above)
+		if (subtaskCategories.length === 0) {
+			return false;
+		}
+
 		// Check if any category overlaps
+		const lessonCategories = categorizeLesson(lesson);
+		// If lesson has no categories, include it for any categorized subtask (broad applicability)
+		if (lessonCategories.length === 0) {
+			return true;
+		}
 		return lessonCategories.some(cat => subtaskCategories.includes(cat));
 	});
 }
