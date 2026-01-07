@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple.svg)](https://modelcontextprotocol.io)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
-[![18 Tools](https://img.shields.io/badge/Tools-18-blue.svg)](#tools)
+[![19 Tools](https://img.shields.io/badge/Tools-19-blue.svg)](#tools)
 
 **Transform ideas into executable development plans** — an MCP server that brings the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) methodology to Claude Code.
 
@@ -179,6 +179,7 @@ Feedback loop that captures issues from verification and incorporates them into 
 |------|---------|
 | `devplan_add_lesson` | Capture a lesson from verifier findings |
 | `devplan_list_lessons` | List accumulated lessons by severity |
+| `devplan_archive_lesson` | Archive old lessons without deleting them |
 | `devplan_delete_lesson` | Remove outdated or incorrect lessons |
 | `devplan_extract_lessons_from_report` | Auto-extract lessons from verification reports |
 
@@ -215,7 +216,7 @@ graph TB
 
     subgraph MCP["DevPlan MCP Server"]
         SSE[SSE Endpoint]
-        Tools[18 MCP Tools]
+        Tools[19 MCP Tools]
         Gen[Plan Generators]
     end
 
@@ -244,7 +245,13 @@ graph TB
 
 ```mermaid
 timeline
-    title DevPlan MCP Server - December 2025
+    title DevPlan MCP Server - December 2025 / January 2026
+
+    section Week 4
+        Haiku-Executable Phases : Claude writes complete code, not scaffolds
+        Lesson Archiving : Archive old lessons without deletion
+        Severity Filtering : Filter lessons by min severity
+        Verifier Workflow : Prompts to run verifier at 100%
 
     section Week 3
         Content Drift Detection : Detects outdated inline guidance
