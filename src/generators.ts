@@ -1829,128 +1829,185 @@ function getFeatureShortTitle(feature: string): string {
 }
 
 /**
- * Generate additional phases based on the project's specific MVP features.
- * Now with detailed, paint-by-numbers implementation guidance.
- * @param brief - The parsed project brief
- * @param lessons - Optional lessons to inject into success criteria
- * @param projectType - The project type for lesson filtering
+ * Generate feature phase placeholders with explicit instructions for Claude to write
+ * complete, Haiku-executable implementations.
+ *
+ * IMPORTANT: This function does NOT generate the actual implementation details.
+ * It provides structure and instructions. Claude Code must write the complete
+ * code blocks, exact file paths, and verification commands.
  */
 function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectType?: string): string {
 	if (brief.keyFeatures.length === 0) {
 		return "";
 	}
 
-	// Start feature phases after foundation phases (typically phase 2+)
-	const startPhase = 2;
-	const techStack = brief.mustUseTech;
+	// Generate lesson safeguards section if lessons exist
+	let lessonSection = "";
+	if (lessons && lessons.length > 0 && projectType) {
+		const relevantLessons = filterLessonsForProject(lessons, projectType);
+		if (relevantLessons.length > 0) {
+			const criticalLessons = relevantLessons.filter(l => l.severity === "critical");
+			const warningLessons = relevantLessons.filter(l => l.severity === "warning");
 
-	// Track previous subtask for prerequisite chaining
-	let previousSubtaskId = "1.1.1";
-	let previousSubtaskTitle = "Click CLI Setup";
+			const lessonItems: string[] = [];
+			criticalLessons.forEach(l => lessonItems.push(`- 🔴 **${l.pattern}**: ${l.fix}`));
+			warningLessons.slice(0, 3).forEach(l => lessonItems.push(`- 🟡 **${l.pattern}**: ${l.fix}`));
 
-	const featurePhases = brief.keyFeatures.map((feature, index) => {
-		const phaseNum = startPhase + index;
-		const featureId = feature
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.slice(0, 30);
-		const featureShortTitle = getFeatureShortTitle(feature);
-
-		const impl = generateFeatureImplementation(feature, brief.projectName, phaseNum, techStack);
-
-		const deliverables = impl.deliverables.map((d) => `- [ ] ${d}`).join("\n");
-		const filesToCreate =
-			impl.filesToCreate.length > 0
-				? impl.filesToCreate.map((f) => `- \`${f}\``).join("\n")
-				: "- None (modify existing files only)";
-		const filesToModify =
-			impl.filesToModify.length > 0
-				? impl.filesToModify.map((f) => `- \`${f}\``).join("\n")
-				: "- None";
-		// Base success criteria from feature implementation
-		const baseSuccessCriteria = impl.successCriteria.map((c) => `- [ ] ${c}`);
-
-		// Add lesson-based success criteria if lessons provided
-		let lessonCriteria: string[] = [];
-		if (lessons && lessons.length > 0 && projectType) {
-			const relevantLessons = findRelevantLessons(
-				featureShortTitle,
-				impl.deliverables,
-				lessons,
-				projectType
-			);
-			if (relevantLessons.length > 0) {
-				lessonCriteria = generateLessonSuccessCriteria(relevantLessons)
-					.map(c => `- [ ] ${c}`);
+			if (lessonItems.length > 0) {
+				lessonSection = `
+> **Lessons Learned** (apply to ALL feature phases):
+${lessonItems.join("\n")}
+`;
 			}
 		}
+	}
 
-		const successCriteria = [...baseSuccessCriteria, ...lessonCriteria].join("\n");
-		// Technology Decisions are mandatory - provide default if not specified
-		const techDecisionsContent = impl.techDecisions && impl.techDecisions.length > 0
-			? impl.techDecisions.map((t) => `- ${t}`).join("\n")
-			: `- Follow project conventions established in Phase 0\n- Maintain consistency with existing codebase patterns\n- Prioritize readability and maintainability`;
-		const techDecisions = `\n**Technology Decisions**:\n${techDecisionsContent}\n`;
-		// Code guidance with implementation examples
-		const codeGuidance = impl.codeGuidance ? `\n**Implementation Guide**:\n${impl.codeGuidance}\n` : "";
+	// Start feature phases after foundation phases
+	const startPhase = 2;
+	const featureList = brief.keyFeatures
+		.map((f, i) => `- Phase ${startPhase + i}: ${f}`)
+		.join("\n");
 
-		// Generate prerequisite reference to previous subtask (marked [x] as it must be complete)
-		const prerequisite = `- [x] ${previousSubtaskId}: ${previousSubtaskTitle}`;
+	return `---
 
-		// Update for next iteration
-		const currentSubtaskId = `${phaseNum}.1.1`;
-		previousSubtaskId = currentSubtaskId;
-		previousSubtaskTitle = featureShortTitle;
+## 🚨 FEATURE PHASES - MUST BE WRITTEN BY CLAUDE CODE 🚨
 
-		return `## Phase ${phaseNum}: ${feature}
+The following features from PROJECT_BRIEF.md need complete, Haiku-executable phases:
 
-**Goal**: Implement ${feature.toLowerCase()}
-**Duration**: 1-2 days
+${featureList}
+${lessonSection}
+**YOU MUST WRITE EACH PHASE** with:
 
-### Task ${phaseNum}.1: Core Implementation
+1. **Complete code blocks** - Every file must have the FULL implementation, not pseudocode
+2. **Exact file paths** - Real paths like \`${brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}/calendar.py\`, not \`<feature_module>.py\`
+3. **Verification commands** - Commands to run with expected output
+4. **Function signatures with types** - Full type hints, docstrings, error handling
 
-**Git**: Create branch \`feature/${phaseNum}-1-${featureId}\` when starting. Commit after subtask. Squash merge to main when task complete.
+### Example of a Haiku-Executable Phase (from HelloCLI):
 
-**Subtask ${phaseNum}.1.1: ${featureShortTitle} (Single Session)**
+\`\`\`markdown
+## Phase 2: Markdown Parsing
+
+**Goal**: Parse markdown files to HTML with GFM support
+**Duration**: 1 day
+
+### Task 2.1: Core Parser Implementation
+
+**Git**: Create branch \`feature/2-1-markdown-parser\`
+
+**Subtask 2.1.1: Markdown Parser Module (Single Session)**
 
 **Prerequisites**:
-${prerequisite}
+- [x] 1.1.1: Click CLI Setup
 
 **Deliverables**:
-${deliverables}
-${techDecisions}
-**Files to Create**:
-${filesToCreate}
+- [ ] Create \`hello_cli/parser.py\` with complete implementation:
 
-**Files to Modify**:
-${filesToModify}
+\\\`\\\`\\\`python
+# hello_cli/parser.py
+"""Markdown parsing with GFM support."""
+from pathlib import Path
+from markdown_it import MarkdownIt
+from markdown_it.renderer import RendererHTML
+
+
+class CustomRenderer(RendererHTML):
+    """Custom renderer with code block hooks."""
+
+    def __init__(self, code_highlighter=None):
+        super().__init__()
+        self.code_highlighter = code_highlighter
+
+    def fence(self, tokens, idx, options, env):
+        token = tokens[idx]
+        code = token.content
+        lang = token.info.strip() if token.info else None
+
+        if self.code_highlighter and lang:
+            return self.code_highlighter(code, lang)
+
+        lang_class = f' class="language-{lang}"' if lang else ''
+        escaped = self.escapeHtml(code)
+        return f'<pre><code{lang_class}>{escaped}</code></pre>\\n'
+
+
+def create_parser(code_highlighter=None) -> MarkdownIt:
+    """Create configured markdown parser with GFM support."""
+    md = MarkdownIt("gfm-like")
+    if code_highlighter:
+        md.renderer = CustomRenderer(code_highlighter)
+    return md
+
+
+def parse_markdown_file(path: Path) -> str:
+    """Parse markdown file to HTML."""
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    content = path.read_text(encoding="utf-8")
+    return parse_markdown_content(content)
+
+
+def parse_markdown_content(content: str) -> str:
+    """Parse markdown string to HTML."""
+    if not content:
+        return ""
+    md = create_parser()
+    return md.render(content)
+\\\`\\\`\\\`
+
+- [ ] Add dependency to \`pyproject.toml\`:
+\\\`\\\`\\\`toml
+dependencies = [
+    "click>=8.1.0",
+    "markdown-it-py[plugins]>=3.0.0",
+]
+\\\`\\\`\\\`
+
+- [ ] Create \`tests/test_parser.py\`:
+\\\`\\\`\\\`python
+# tests/test_parser.py
+import pytest
+from pathlib import Path
+from hello_cli.parser import parse_markdown_content, parse_markdown_file
+
+
+def test_parse_heading():
+    assert "<h1>" in parse_markdown_content("# Hello")
+
+
+def test_parse_code_block():
+    result = parse_markdown_content("\\\`\\\`\\\`python\\nprint('hi')\\n\\\`\\\`\\\`")
+    assert 'class="language-python"' in result
+
+
+def test_parse_empty_string():
+    assert parse_markdown_content("") == ""
+
+
+def test_file_not_found():
+    with pytest.raises(FileNotFoundError):
+        parse_markdown_file(Path("/nonexistent.md"))
+\\\`\\\`\\\`
 
 **Success Criteria**:
-${successCriteria}
-${codeGuidance}
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**:
-  - (filename) - (line count) lines
-- **Files Modified**:
-  - (filename)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (ruff: pass/fail, mypy: pass/fail)
-- **Branch**: feature/${phaseNum}-1-${featureId}
-- **Notes**: (any additional context)
+- [ ] \`python -c "from hello_cli.parser import parse_markdown_content; print(parse_markdown_content('# Test'))"\` outputs \`<h1>Test</h1>\`
+- [ ] \`pytest tests/test_parser.py -v\` shows 4 tests passing
+- [ ] \`ruff check hello_cli/parser.py\` passes
+- [ ] \`mypy hello_cli/parser.py\` passes
+\`\`\`
 
 ---
 
-### Task ${phaseNum}.1 Complete - Squash Merge
-- [ ] All subtasks complete
-- [ ] All tests pass
-- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${phaseNum}-1-${featureId}\`
-- [ ] Delete branch: \`git branch -d feature/${phaseNum}-1-${featureId}\``;
-	});
+### NOW WRITE PHASES ${startPhase}-${startPhase + brief.keyFeatures.length - 1}
 
-	return featurePhases.join("\n\n");
+For each feature, create a phase following the EXACT format above with:
+- Complete, copy-pasteable code (not placeholders)
+- Real file paths based on project structure
+- Actual test implementations
+- Verification commands with expected output
+
+**Tech stack to use**: ${brief.mustUseTech.join(", ") || "See PROJECT_BRIEF.md"}
+`;
 }
 
 /**
