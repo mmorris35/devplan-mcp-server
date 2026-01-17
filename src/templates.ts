@@ -778,6 +778,65 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 	],
 };
 
+/**
+ * Find the best matching template for a composite key.
+ * Implements fallback chain: exact match → without variant → minimal:language → null
+ *
+ * @param key - Composite key like "cli:python" or "web_app:typescript:static"
+ * @returns PhaseTemplate[] if found, null if no match (triggers minimal scaffold)
+ */
+export function findTemplate(key: string): PhaseTemplate[] | null {
+	// Try exact match first
+	if (PROJECT_TYPE_TASKS[key as ProjectType]) {
+		return PROJECT_TYPE_TASKS[key as ProjectType];
+	}
+
+	// Parse the key
+	const parts = key.split(":");
+	const projectType = parts[0];
+	const language = parts[1];
+	const variant = parts[2];
+
+	// If we have a variant, try without it
+	if (variant) {
+		const withoutVariant = `${projectType}:${language}`;
+		if (PROJECT_TYPE_TASKS[withoutVariant as ProjectType]) {
+			return PROJECT_TYPE_TASKS[withoutVariant as ProjectType];
+		}
+	}
+
+	// Try just the project type (for backwards compatibility with existing templates)
+	// Map language to existing template keys
+	if (projectType === "cli" && language === "python") {
+		return PROJECT_TYPE_TASKS.cli;
+	}
+	if (projectType === "web_app" && (language === "typescript" || language === "javascript")) {
+		return PROJECT_TYPE_TASKS.web_app;
+	}
+	if (projectType === "api" && language === "python") {
+		return PROJECT_TYPE_TASKS.api;
+	}
+	if (projectType === "library" && language === "python") {
+		return PROJECT_TYPE_TASKS.library;
+	}
+
+	// Try language-only minimal template (future expansion)
+	const minimalKey = `minimal:${language}`;
+	if (PROJECT_TYPE_TASKS[minimalKey as ProjectType]) {
+		return PROJECT_TYPE_TASKS[minimalKey as ProjectType];
+	}
+
+	// No match - return null to trigger minimal scaffold generation
+	return null;
+}
+
+/**
+ * Check if a specific template key has a direct match (no fallback).
+ */
+export function hasExactTemplate(key: string): boolean {
+	return PROJECT_TYPE_TASKS[key as ProjectType] !== undefined;
+}
+
 // Interview questions for gathering project requirements
 export const INTERVIEW_QUESTIONS = [
 	{
