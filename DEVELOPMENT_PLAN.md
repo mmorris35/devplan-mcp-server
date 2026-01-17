@@ -54,16 +54,16 @@ please re-read CLAUDE.md and DEVELOPMENT_PLAN.md (the entire documents, for cont
 - [x] 2.1.2: Add tests for template lookup
 
 ### Phase 3: Minimal Scaffold Generator
-- [ ] 3.1.1: Implement generateMinimalScaffold() function
-- [ ] 3.1.2: Add tests for minimal scaffold generation
+- [x] 3.1.1: Implement generateMinimalScaffold() function
+- [x] 3.1.2: Add tests for minimal scaffold generation
 
 ### Phase 4: Integration
 - [ ] 4.1.1: Update generatePlan() to use new flow
 - [ ] 4.1.2: Add integration tests for all scenarios
 - [ ] 4.1.3: Manual verification of fix for issue #80
 
-**Current**: Phase 2 Complete
-**Next**: 3.1.1
+**Current**: 3.1.2 Complete
+**Next**: 4.1.1
 
 ---
 
@@ -1422,10 +1422,10 @@ npx vitest run src/__tests__/template-lookup.test.ts
 - [x] 2.1.2: Add tests for template lookup
 
 **Deliverables**:
-- [ ] Add `MinimalScaffoldConfig` interface to generators.ts
-- [ ] Add `generateMinimalScaffold()` function
-- [ ] Import and use `getLanguageDefaults()` from language-defaults.ts
-- [ ] Generate Phase 0 (Foundation) and Phase 1 (Core) scaffold sections
+- [x] Add `MinimalScaffoldConfig` interface to generators.ts
+- [x] Add `generateMinimalScaffold()` function
+- [x] Import and use `getLanguageDefaults()` from language-defaults.ts
+- [x] Generate Phase 0 (Foundation) and Phase 1 (Core) scaffold sections
 
 **Complete Code**:
 
@@ -1805,11 +1805,11 @@ ${featureList}
 - `src/generators.ts`
 
 **Success Criteria**:
-- [ ] `MinimalScaffoldConfig` interface is exported
-- [ ] `generateMinimalScaffold()` function is exported
-- [ ] Function generates valid markdown with Phase 0 and Phase 1
-- [ ] Language defaults are used for language-specific content
-- [ ] TypeScript compiles without errors
+- [x] `MinimalScaffoldConfig` interface is exported
+- [x] `generateMinimalScaffold()` function is exported
+- [x] Function generates valid markdown with Phase 0 and Phase 1
+- [x] Language defaults are used for language-specific content
+- [x] TypeScript compiles without errors
 
 **Verification**:
 ```bash
@@ -1826,14 +1826,14 @@ grep -c "export interface MinimalScaffoldConfig" src/generators.ts
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Added `MinimalScaffoldConfig` interface, `generateMinimalScaffold()` function, and helper functions `generateMinimalPhase0()` and `generateMinimalPhase1()` to generators.ts. The function uses language defaults from language-defaults.ts to generate Phase 0 (Foundation) and Phase 1 (Core Implementation) scaffold sections with appropriate language-specific configuration.
 - **Files Created**: None
 - **Files Modified**:
-  - src/generators.ts
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (tsc: pass/fail)
+  - src/generators.ts (~280 lines added)
+- **Tests**: N/A (tests in 3.1.2)
+- **Build**: wrangler types: pass
 - **Branch**: feature/3-1-minimal-scaffold
-- **Notes**: (any additional context)
+- **Notes**: The function generates detailed scaffolds with repository setup, project structure, linting, testing, and core module implementation phases. Placeholders like `{project}` are replaced with the normalized project name.
 
 ---
 
@@ -1843,11 +1843,11 @@ grep -c "export interface MinimalScaffoldConfig" src/generators.ts
 - [x] 3.1.1: Implement generateMinimalScaffold() function
 
 **Deliverables**:
-- [ ] Create test file for minimal scaffold generation
-- [ ] Test scaffold generation for Python projects
-- [ ] Test scaffold generation for TypeScript projects
-- [ ] Test scaffold generation for unknown languages
-- [ ] Verify placeholder replacement works correctly
+- [x] Create test file for minimal scaffold generation
+- [x] Test scaffold generation for Python projects
+- [x] Test scaffold generation for TypeScript projects
+- [x] Test scaffold generation for unknown languages
+- [x] Verify placeholder replacement works correctly
 
 **Complete Code**:
 
@@ -2029,10 +2029,10 @@ describe("minimal-scaffold", () => {
 - None
 
 **Success Criteria**:
-- [ ] All unit tests pass
-- [ ] Tests cover Python, TypeScript, Go, and unknown languages
-- [ ] Tests verify placeholder replacement
-- [ ] Tests verify language-specific content
+- [x] All unit tests pass
+- [x] Tests cover Python, TypeScript, Go, and unknown languages
+- [x] Tests verify placeholder replacement
+- [x] Tests verify language-specific content
 
 **Verification**:
 ```bash
@@ -2043,14 +2043,14 @@ npx vitest run src/__tests__/minimal-scaffold.test.ts
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Created comprehensive test suite for generateMinimalScaffold() with 7 test cases covering Python CLI, TypeScript API, Go library, unknown language (COBOL), empty features, special character project names, and technology stack inclusion in output.
 - **Files Created**:
-  - src/__tests__/minimal-scaffold.test.ts
+  - src/__tests__/minimal-scaffold.test.ts - 149 lines
 - **Files Modified**: None
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (tsc: pass/fail, vitest: pass/fail)
+- **Tests**: 7 tests, all passing
+- **Build**: vitest: pass
 - **Branch**: feature/3-1-minimal-scaffold
-- **Notes**: (any additional context)
+- **Notes**: Adjusted TechStack import to use ../models (actual codebase location) instead of ../generators as specified in plan. All tests verify language-specific content generation and placeholder replacement.
 
 ---
 

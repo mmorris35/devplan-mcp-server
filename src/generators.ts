@@ -9,6 +9,7 @@
 
 import type { DevelopmentPlan, Phase, ProjectBrief, TechStack } from "./models";
 import { getTemplate, PROJECT_TYPE_TASKS, type PhaseTemplate } from "./templates";
+import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
 
 export interface BriefInput {
 	name: string;
@@ -181,6 +182,362 @@ export function detectVariant(brief: ProjectBrief): TemplateKey["variant"] | und
 	}
 
 	return undefined; // Use default variant for project type
+}
+
+/**
+ * Configuration for minimal scaffold generation.
+ */
+export interface MinimalScaffoldConfig {
+	projectName: string;
+	projectType: string;
+	language: string;
+	techStack: TechStack;
+	features: string[];
+}
+
+/**
+ * Generate a minimal but useful scaffold when no specific template matches.
+ * Uses language defaults to provide appropriate project structure guidance.
+ */
+export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
+	const { projectName, projectType, language, techStack, features } = config;
+	const langDefaults = getLanguageDefaults(language);
+	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+	// Helper to replace {project} placeholders
+	const replacePlaceholders = (text: string): string => {
+		return text.replace(/\{project\}/g, projectUnderscore);
+	};
+
+	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders);
+	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults);
+
+	return phase0 + "\n\n---\n\n" + phase1;
+}
+
+/**
+ * Generate Phase 0: Foundation for minimal scaffold.
+ */
+function generateMinimalPhase0(
+	projectName: string,
+	projectType: string,
+	language: string,
+	langDefaults: LanguageDefaults,
+	replacePlaceholders: (text: string) => string
+): string {
+	const filesToCreate = langDefaults.filesToCreate.map((f) => `- \`${replacePlaceholders(f)}\``).join("\n");
+	const projectStructure = langDefaults.projectStructure.map((d) => `- [ ] ${replacePlaceholders(d)}`).join("\n");
+	const successCriteria = langDefaults.successCriteria.map((c) => `- [ ] ${replacePlaceholders(c)}`).join("\n");
+	const techDecisions = langDefaults.techDecisions.map((t) => `- ${t}`).join("\n");
+	const lintingSetup = langDefaults.lintingSetup.map((d) => `- [ ] ${d}`).join("\n");
+	const lintingCriteria = langDefaults.lintingCriteria.map((c) => `- [ ] ${c}`).join("\n");
+	const testingSetup = langDefaults.testingSetup.map((d) => `- [ ] ${d}`).join("\n");
+	const testingCriteria = langDefaults.testingCriteria.map((c) => `- [ ] ${c}`).join("\n");
+	const ignorePatterns = langDefaults.ignorePatterns.slice(0, 5).join(", ");
+
+	return `## Phase 0: Foundation
+
+**Goal**: Set up repository and project structure for ${language} ${projectType}
+**Duration**: 1-2 days
+
+### Task 0.1: Repository Setup
+
+**Git**: Create branch \`feature/0-1-repo-setup\` when starting first subtask.
+
+**Subtask 0.1.1: Initialize Repository (Single Session)**
+
+**Prerequisites**:
+- None (first subtask)
+
+**Deliverables**:
+- [ ] Run \`git init\` to initialize repository
+- [ ] Create \`.gitignore\` with ${language} standard ignores
+- [ ] Create \`README.md\` with project name and description
+- [ ] Create \`LICENSE\` file (MIT recommended)
+- [ ] Make initial commit
+
+**Technology Decisions**:
+- Use MIT license for open-source compatibility
+- Follow semantic commit convention
+
+**Files to Create**:
+- \`.gitignore\`
+- \`README.md\`
+- \`LICENSE\`
+
+**Files to Modify**:
+- None
+
+**Success Criteria**:
+- [ ] \`.gitignore\` includes ${language}-appropriate patterns (${ignorePatterns}, etc.)
+- [ ] README.md has \`# ${projectName}\` heading
+- [ ] First commit exists with message "chore: initial repository setup"
+- [ ] \`git status\` shows clean working tree
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: None
+- **Tests**: N/A (setup)
+- **Build**: N/A (setup)
+- **Branch**: feature/0-1-repo-setup
+- **Notes**: (any additional context)
+
+---
+
+**Subtask 0.1.2: Project Structure (Single Session)**
+
+**Prerequisites**:
+- [x] 0.1.1: Initialize Repository
+
+**Deliverables**:
+${projectStructure}
+
+**Technology Decisions**:
+${techDecisions}
+
+**Files to Create**:
+${filesToCreate}
+
+**Files to Modify**:
+- None
+
+**Success Criteria**:
+${successCriteria}
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: None
+- **Tests**: N/A
+- **Build**: N/A
+- **Branch**: feature/0-1-repo-setup
+- **Notes**: (any additional context)
+
+---
+
+### Task 0.2: Development Tools
+
+**Git**: Continue on branch \`feature/0-1-repo-setup\` or create \`feature/0-2-dev-tools\`
+
+**Subtask 0.2.1: Linting and Formatting (Single Session)**
+
+**Prerequisites**:
+- [x] 0.1.2: Project Structure
+
+**Deliverables**:
+${lintingSetup}
+
+**Technology Decisions**:
+- Use standard linting tools for ${language}
+- Configure for consistency across the project
+
+**Files to Create**:
+- Linter configuration file
+
+**Files to Modify**:
+- ${langDefaults.configFile !== "none" ? `\`${langDefaults.configFile}\`` : "None"}
+
+**Success Criteria**:
+${lintingCriteria}
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: N/A
+- **Build**: (linter: pass/fail)
+- **Branch**: feature/0-2-dev-tools
+- **Notes**: (any additional context)
+
+---
+
+**Subtask 0.2.2: Testing Setup (Single Session)**
+
+**Prerequisites**:
+- [x] 0.2.1: Linting and Formatting
+
+**Deliverables**:
+${testingSetup}
+
+**Technology Decisions**:
+- Use standard testing framework for ${language}
+- Set up for test-driven development
+
+**Files to Create**:
+- Test configuration (if needed)
+- Placeholder test file
+
+**Files to Modify**:
+- ${langDefaults.configFile !== "none" ? `\`${langDefaults.configFile}\`` : "None"}
+
+**Success Criteria**:
+${testingCriteria}
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests passing)
+- **Build**: (test runner: pass/fail)
+- **Branch**: feature/0-2-dev-tools
+- **Notes**: (any additional context)
+
+---
+
+### Task 0.1/0.2 Complete - Squash Merge
+- [ ] All subtasks complete (0.1.1 - 0.2.2)
+- [ ] All linting passes
+- [ ] Test framework runs
+- [ ] Squash merge to main
+- [ ] Delete feature branch`;
+}
+
+/**
+ * Generate Phase 1: Core Implementation scaffold for minimal scaffold.
+ */
+function generateMinimalPhase1(
+	projectName: string,
+	projectType: string,
+	language: string,
+	techStack: TechStack,
+	features: string[],
+	langDefaults: LanguageDefaults
+): string {
+	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+	const featureList =
+		features.length > 0
+			? features
+					.slice(0, 3)
+					.map((f, i) => `- Feature ${i + 1}: ${f}`)
+					.join("\n")
+			: "- (Define core features based on project requirements)";
+
+	const techStackLines = [
+		`- **Language**: ${techStack.language || language}`,
+		techStack.framework ? `- **Framework**: ${techStack.framework}` : null,
+		techStack.testing ? `- **Testing**: ${techStack.testing}` : null,
+		techStack.database ? `- **Database**: ${techStack.database}` : null,
+	]
+		.filter(Boolean)
+		.join("\n");
+
+	return `## Phase 1: Core Implementation
+
+**Goal**: Implement core functionality for ${projectType}
+
+> **Note**: No specific template matched "${projectType}" with "${language}".
+> The subtasks below provide structure, but Claude should fill in specific deliverables
+> based on the technology stack and features.
+
+**Technology Stack**:
+${techStackLines}
+
+**Core Features to Implement**:
+${featureList}
+
+### Task 1.1: Core Module Implementation
+
+**Git**: Create branch \`feature/1-1-core-module\`
+
+**Subtask 1.1.1: Main Entry Point (Single Session)**
+
+**Prerequisites**:
+- [x] 0.2.2: Testing Setup
+
+**Deliverables**:
+- [ ] Create main entry point file (\`${projectUnderscore}/main.${langDefaults.fileExtension}\` or equivalent)
+- [ ] Implement basic structure/skeleton for the ${projectType}
+- [ ] Add appropriate imports and type definitions
+- [ ] Write unit tests for the entry point
+
+**Technology Decisions**:
+- Follow ${language} conventions for project structure
+- Use types/interfaces where supported by the language
+
+**Files to Create**:
+- \`${projectUnderscore}/main.${langDefaults.fileExtension}\` (or framework-appropriate path)
+- \`tests/test_main.${langDefaults.fileExtension}\`
+
+**Files to Modify**:
+- None
+
+**Success Criteria**:
+- [ ] Entry point file exists and is syntactically valid
+- [ ] Can run/import the module without errors
+- [ ] At least one unit test exists and passes
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail)
+- **Branch**: feature/1-1-core-module
+- **Notes**: (any additional context)
+
+---
+
+**Subtask 1.1.2: First Core Feature (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.1: Main Entry Point
+
+**Deliverables**:
+- [ ] Implement first core feature from the features list
+- [ ] Add error handling for edge cases
+- [ ] Write comprehensive unit tests
+- [ ] Update README with usage instructions
+
+> **Claude**: Reference the first feature from the "Core Features to Implement" section above.
+> Write complete, working code - not pseudocode or placeholders.
+
+**Technology Decisions**:
+- (Determined by specific feature requirements)
+
+**Files to Create**:
+- Feature module file(s)
+- Test file(s) for the feature
+
+**Files to Modify**:
+- Entry point (to integrate feature)
+- README.md (usage instructions)
+
+**Success Criteria**:
+- [ ] Feature works as specified
+- [ ] All edge cases handled
+- [ ] Tests achieve >80% coverage for the feature
+- [ ] README documents how to use the feature
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail)
+- **Branch**: feature/1-1-core-module
+- **Notes**: (any additional context)
+
+---
+
+### Task 1.1 Complete - Squash Merge
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] Linting passes
+- [ ] Squash merge to main
+- [ ] Delete feature branch`;
 }
 
 /**
