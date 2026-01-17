@@ -8,7 +8,7 @@
  */
 
 import type { DevelopmentPlan, Phase, ProjectBrief, TechStack } from "./models";
-import { getTemplate, PROJECT_TYPE_TASKS, type PhaseTemplate } from "./templates";
+import { getTemplate, PROJECT_TYPE_TASKS, findTemplate, type PhaseTemplate } from "./templates";
 import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
 
 export interface BriefInput {
@@ -138,7 +138,10 @@ export function detectVariant(brief: ProjectBrief): TemplateKey["variant"] | und
 	const hasStatic = staticIndicators.some((i) => combined.includes(i));
 	const hasBackend = backendIndicators.some((i) => combined.includes(i));
 
-	if (hasStatic && !hasBackend) {
+	// Check if tech stack indicates static site (HTML/CSS only, no framework)
+	const isHtmlCssOnly = (techLower === "html" || techLower === "css" || techLower === "html css" || techLower === "css html") && !hasBackend;
+
+	if ((hasStatic || isHtmlCssOnly) && !hasBackend) {
 		return "static";
 	}
 
@@ -882,23 +885,41 @@ export function generateTechStack(brief: ProjectBrief): TechStack {
 
 	// Build tech stack: must_use > defaults > fallbacks
 	let language = extracted.language || defaults.language;
-	let framework = extracted.framework || defaults.framework || "";
+	let framework = extracted.framework || "";
 	let database = extracted.database || defaults.database || "";
-	let deployment = extracted.deployment || defaults.deployment || "";
+	let deployment = extracted.deployment || "";
 
-	// Set language-appropriate defaults for testing/linting
-	let testing = extracted.testing || defaults.testing;
-	let linting = defaults.linting;
-	let typeChecking = defaults.typeChecking;
+	// Set language-appropriate defaults for testing/linting/framework/deployment
+	let testing = extracted.testing || "";
+	let linting = "";
+	let typeChecking = "";
 
-	if (detectedLang === "python" || language.toLowerCase().includes("python")) {
-		testing = testing || "pytest";
+	// Determine if template defaults match detected language
+	const templateIsPython = defaults.language.toLowerCase().includes("python");
+	const detectedIsPython = detectedLang === "python" || language.toLowerCase().includes("python");
+
+	if (detectedLang === "python" || detectedIsPython) {
+		// Use Python-specific defaults
+		if (!framework) framework = defaults.framework || "";
+		if (!deployment) deployment = defaults.deployment || "";
+		testing = testing || defaults.testing || "pytest";
 		linting = "ruff";
 		typeChecking = "mypy";
 	} else if (detectedLang === "typescript" || detectedLang === "javascript") {
-		testing = testing || "Jest";
+		// Use TypeScript/JavaScript-specific defaults - don't inherit Python defaults
+		testing = testing || "vitest";
 		linting = "ESLint";
 		typeChecking = "TypeScript";
+		deployment = deployment || "npm";
+	} else {
+		// For other languages, only use template defaults if language matches
+		if (templateIsPython === detectedIsPython) {
+			if (!framework) framework = defaults.framework || "";
+			if (!deployment) deployment = defaults.deployment || "";
+		}
+		testing = testing || defaults.testing || "";
+		linting = defaults.linting || "";
+		typeChecking = defaults.typeChecking || "";
 	}
 
 	const ciCd = defaults.ciCd || "GitHub Actions";
@@ -998,64 +1019,15 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
 }
 
 /**
- * Generate detailed DEVELOPMENT_PLAN.md with paint-by-numbers subtasks.
- * Each subtask has explicit deliverables, files, and success criteria.
- *
- * @param briefContent - The PROJECT_BRIEF.md content
- * @param lessons - Optional array of lessons to inject into subtask success criteria
+ * Render phase templates to markdown.
+ * Extracted from generatePlan() to support both template and minimal scaffold paths.
  */
-export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
-	const brief = parseBrief(briefContent);
-	const techStack = generateTechStack(brief);
-	const declaredProjectType = (brief.projectType.toLowerCase().replace(/[\s-]/g, "_") || "cli") as
-		| "cli"
-		| "web_app"
-		| "api"
-		| "library";
-
-	// Detect language from tech stack to select appropriate templates
-	const detectedLang = detectLanguage(brief.mustUseTech);
-	const isPython = detectedLang === "python" || techStack.language.toLowerCase().includes("python");
-	const isTypeScript = detectedLang === "typescript" || techStack.language.toLowerCase().includes("typescript");
-
-	// Select templates based on BOTH project type AND language
-	// - web_app + Python → use api templates (Python/FastAPI based)
-	// - api + TypeScript → use web_app templates (TypeScript/Next.js based)
-	// - Otherwise use declared type
-	let effectiveTemplateType: "cli" | "web_app" | "api" | "library" = declaredProjectType;
-	let templateNote = "";
-
-	if (declaredProjectType === "web_app" && isPython) {
-		effectiveTemplateType = "api";
-		templateNote = `> **Note**: Using Python/FastAPI templates for this web application (detected Python in tech stack).\n\n`;
-	} else if (declaredProjectType === "api" && isTypeScript) {
-		effectiveTemplateType = "web_app";
-		templateNote = `> **Note**: Using TypeScript/Next.js templates for this API (detected TypeScript in tech stack).\n\n`;
-	}
-
-	const projectType = declaredProjectType; // Keep original for naming
-	const phaseTemplates = PROJECT_TYPE_TASKS[effectiveTemplateType] || PROJECT_TYPE_TASKS.cli;
-
-	const techStackSection = Object.entries(techStack)
-		.filter(([key, value]) => value && key !== "additionalTools")
-		.map(([key, value]) => `- **${formatKey(key)}**: ${value}`)
-		.join("\n");
-
-	// Build progress tracking section
-	const progressSection = phaseTemplates
-		.map((phase) => {
-			const taskLines = phase.tasks
-				.flatMap((task) =>
-					task.subtasks.map(
-						(subtask) => `- [ ] ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)}`
-					)
-				)
-				.join("\n");
-			return `### Phase ${phase.id}: ${phase.title}\n${taskLines}`;
-		})
-		.join("\n\n");
-
-	// Build detailed phase sections with full subtask details
+function renderTemplatePhases(
+	phaseTemplates: PhaseTemplate[],
+	brief: ProjectBrief,
+	lessons: Lesson[] | undefined,
+	projectType: string
+): string {
 	const phasesSection = phaseTemplates
 		.map((phase) => {
 			const tasksSection = phase.tasks
@@ -1078,9 +1050,11 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 											.map((f) => `- \`${replaceTemplatePlaceholders(f, brief.projectName)}\``)
 											.join("\n")
 									: "- None";
+
 							// Base success criteria from template
-							const baseSuccessCriteria = subtask.successCriteria
-								.map((c) => `- [ ] ${replaceTemplatePlaceholders(c, brief.projectName)}`);
+							const baseSuccessCriteria = subtask.successCriteria.map(
+								(c) => `- [ ] ${replaceTemplatePlaceholders(c, brief.projectName)}`
+							);
 
 							// Add lesson-based success criteria if lessons provided
 							let lessonCriteria: string[] = [];
@@ -1092,25 +1066,25 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 									projectType
 								);
 								if (relevantLessons.length > 0) {
-									lessonCriteria = generateLessonSuccessCriteria(relevantLessons)
-										.map(c => `- [ ] ${c}`);
+									lessonCriteria = generateLessonSuccessCriteria(relevantLessons).map((c) => `- [ ] ${c}`);
 								}
 							}
 
 							const successCriteria = [...baseSuccessCriteria, ...lessonCriteria].join("\n");
 
 							// Technology Decisions are mandatory - provide default if not specified
-							const techDecisionsContent = subtask.techDecisions && subtask.techDecisions.length > 0
-								? subtask.techDecisions.map((t) => `- ${replaceTemplatePlaceholders(t, brief.projectName)}`).join("\n")
-								: `- Follow project conventions established in Phase 0\n- Maintain consistency with existing codebase patterns`;
+							const techDecisionsContent =
+								subtask.techDecisions && subtask.techDecisions.length > 0
+									? subtask.techDecisions
+											.map((t) => `- ${replaceTemplatePlaceholders(t, brief.projectName)}`)
+											.join("\n")
+									: `- Follow project conventions established in Phase 0\n- Maintain consistency with existing codebase patterns`;
 							const techDecisions = `\n**Technology Decisions**:\n${techDecisionsContent}\n`;
 
-							// Track prerequisite for this subtask (marked [x] as it must be complete before starting)
+							// Track prerequisite for this subtask
 							const prereqId = getPreviousSubtaskId(subtask.id, phaseTemplates);
 							const prereqTitle = prereqId ? getSubtaskTitle(prereqId, phaseTemplates, brief.projectName) : null;
-							const prerequisite = prereqId
-								? `- [x] ${prereqId}: ${prereqTitle}`
-								: "- None (first subtask)";
+							const prerequisite = prereqId ? `- [x] ${prereqId}: ${prereqTitle}` : "- None (first subtask)";
 
 							return `**Subtask ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)} (Single Session)**
 
@@ -1170,9 +1144,93 @@ ${tasksSection}`;
 		})
 		.join("\n\n---\n\n");
 
+	return phasesSection;
+}
+
+/**
+ * Build progress tracking section from phase templates.
+ */
+function buildProgressSection(phaseTemplates: PhaseTemplate[], brief: ProjectBrief): string {
+	return phaseTemplates
+		.map((phase) => {
+			const taskLines = phase.tasks
+				.flatMap((task) =>
+					task.subtasks.map(
+						(subtask) => `- [ ] ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)}`
+					)
+				)
+				.join("\n");
+			return `### Phase ${phase.id}: ${phase.title}\n${taskLines}`;
+		})
+		.join("\n\n");
+}
+
+/**
+ * Generate detailed DEVELOPMENT_PLAN.md with paint-by-numbers subtasks.
+ * Each subtask has explicit deliverables, files, and success criteria.
+ *
+ * @param briefContent - The PROJECT_BRIEF.md content
+ * @param lessons - Optional array of lessons to inject into subtask success criteria
+ */
+export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
+	const brief = parseBrief(briefContent);
+	const techStack = generateTechStack(brief);
+
+	// Step 1: Resolve template key from brief
+	const templateKey = resolveTemplateKey(brief);
+	const keyString = templateKeyToString(templateKey);
+
+	// Step 2: Try to find matching template
+	const phaseTemplates = findTemplate(keyString);
+
+	// Step 3: Determine if we use specific template or minimal scaffold
+	let foundationSection: string;
+	let templateNote = "";
+	let progressSection: string;
+	const projectType = templateKey.projectType;
+
+	if (phaseTemplates) {
+		// Use specific template - render as before
+		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType);
+		progressSection = buildProgressSection(phaseTemplates, brief);
+	} else {
+		// No matching template - generate minimal scaffold
+		templateNote =
+			`> **Note**: No specific template for "${keyString}". ` +
+			`Using language-appropriate scaffold. Claude should enhance feature phases with project-specific details.\n\n`;
+
+		// Use "static" language for static variants to get proper HTML/CSS defaults
+		const scaffoldLanguage = templateKey.variant === "static" ? "static" : templateKey.language;
+
+		foundationSection = generateMinimalScaffold({
+			projectName: brief.projectName,
+			projectType: templateKey.projectType,
+			language: scaffoldLanguage,
+			techStack: techStack,
+			features: brief.keyFeatures,
+		});
+
+		// For minimal scaffold, generate a simpler progress section
+		progressSection = `### Phase 0: Foundation
+- [ ] 0.1.1: Initialize repository
+- [ ] 0.1.2: Configure linting
+- [ ] 0.1.3: Configure testing
+
+### Phase 1: Core Implementation
+- [ ] 1.1.1: Implement core module
+- [ ] 1.1.2: Add tests for core module`;
+	}
+
+	const techStackSection = Object.entries(techStack)
+		.filter(([key, value]) => value && key !== "additionalTools")
+		.map(([key, value]) => `- **${formatKey(key)}**: ${value}`)
+		.join("\n");
+
 	// Add feature-specific phases based on the project's MVP features
-	// Pass lessons and project type so lessons can be injected into feature phases
-	const featurePhasesSection = generateFeaturePhases(brief, lessons, projectType);
+	// Pass lessons, project type, and language so lessons can be injected into feature phases
+	// and language-appropriate examples can be shown
+	const scaffoldLanguage = templateKey.variant === "static" ? "static" : templateKey.language;
+	const featurePhasesSection = generateFeaturePhases(brief, lessons, projectType, scaffoldLanguage);
 
 	// Add deferred phases for nice-to-have features (Phase X.5 v2)
 	const deferredPhasesSection = generateDeferredPhases(brief);
@@ -1217,7 +1275,7 @@ ${progressSection}
 
 ---
 
-${phasesSection}
+${foundationSection}
 
 ${featurePhasesSection}
 
@@ -2350,54 +2408,244 @@ function getFeatureShortTitle(feature: string): string {
  * It provides structure and instructions. Claude Code must write the complete
  * code blocks, exact file paths, and verification commands.
  */
-function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectType?: string): string {
-	if (brief.keyFeatures.length === 0) {
-		return "";
+/**
+ * Generate a language-appropriate example for feature phases.
+ * This helps Claude understand the expected format for the specific tech stack.
+ */
+function getLanguageExample(language: string): string {
+	const lang = language.toLowerCase();
+
+	if (lang === "typescript" || lang === "javascript") {
+		return `### Example of a Haiku-Executable Phase (TypeScript):
+
+\`\`\`markdown
+## Phase 2: Data Parser
+
+**Goal**: Parse data files with TypeScript
+**Duration**: 1 day
+
+### Task 2.1: Core Parser Implementation
+
+**Git**: Create branch \`feature/2-1-data-parser\`
+
+**Subtask 2.1.1: Parser Module (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.1: Project Setup
+
+**Deliverables**:
+- [ ] Create \`src/parser.ts\` with complete implementation:
+
+\\\`\\\`\\\`typescript
+// src/parser.ts
+/**
+ * Data parsing utilities.
+ */
+
+export interface ParseResult {
+  success: boolean;
+  data: unknown;
+  error?: string;
+}
+
+export function parseJSON(content: string): ParseResult {
+  try {
+    const data = JSON.parse(content);
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, data: null, error: String(error) };
+  }
+}
+
+export function parseFile(path: string): ParseResult {
+  const fs = require('fs');
+  if (!fs.existsSync(path)) {
+    return { success: false, data: null, error: \`File not found: \${path}\` };
+  }
+  const content = fs.readFileSync(path, 'utf-8');
+  return parseJSON(content);
+}
+\\\`\\\`\\\`
+
+- [ ] Create \`src/__tests__/parser.test.ts\`:
+\\\`\\\`\\\`typescript
+// src/__tests__/parser.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseJSON, parseFile } from '../parser';
+
+describe('parseJSON', () => {
+  it('should parse valid JSON', () => {
+    const result = parseJSON('{"key": "value"}');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ key: 'value' });
+  });
+
+  it('should handle invalid JSON', () => {
+    const result = parseJSON('invalid');
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+  });
+});
+\\\`\\\`\\\`
+
+**Success Criteria**:
+- [ ] \`npx tsc --noEmit\` passes without errors
+- [ ] \`npx vitest run src/__tests__/parser.test.ts\` shows tests passing
+- [ ] \`npm run lint\` passes
+\`\`\``;
 	}
 
-	// Generate lesson safeguards section if lessons exist
-	let lessonSection = "";
-	if (lessons && lessons.length > 0 && projectType) {
-		const relevantLessons = filterLessonsForProject(lessons, projectType);
-		if (relevantLessons.length > 0) {
-			const criticalLessons = relevantLessons.filter(l => l.severity === "critical");
-			const warningLessons = relevantLessons.filter(l => l.severity === "warning");
+	if (lang === "static" || lang === "html" || lang === "css") {
+		return `### Example of a Haiku-Executable Phase (Static Site):
 
-			const lessonItems: string[] = [];
-			criticalLessons.forEach(l => lessonItems.push(`- 🔴 **${l.pattern}**: ${l.fix}`));
-			warningLessons.slice(0, 3).forEach(l => lessonItems.push(`- 🟡 **${l.pattern}**: ${l.fix}`));
+\`\`\`markdown
+## Phase 2: Hero Section
 
-			if (lessonItems.length > 0) {
-				lessonSection = `
-> **Lessons Learned** (apply to ALL feature phases):
-${lessonItems.join("\n")}
-`;
-			}
-		}
+**Goal**: Create hero section with responsive design
+**Duration**: 1 day
+
+### Task 2.1: Hero Implementation
+
+**Git**: Create branch \`feature/2-1-hero-section\`
+
+**Subtask 2.1.1: Hero Section (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.1: Project Setup
+
+**Deliverables**:
+- [ ] Update \`index.html\` with hero section:
+
+\\\`\\\`\\\`html
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Title</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <section class="hero">
+        <h1>Welcome</h1>
+        <p>Your tagline here</p>
+        <a href="#" class="cta-button">Get Started</a>
+    </section>
+</body>
+</html>
+\\\`\\\`\\\`
+
+- [ ] Add hero styles to \`css/style.css\`:
+\\\`\\\`\\\`css
+/* css/style.css */
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.cta-button {
+    display: inline-block;
+    padding: 1rem 2rem;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .hero h1 { font-size: 2rem; }
+}
+\\\`\\\`\\\`
+
+**Success Criteria**:
+- [ ] \`index.html\` contains hero section with heading and CTA
+- [ ] Page displays correctly at mobile (375px) and desktop (1920px) widths
+- [ ] No console errors when opening in browser
+\`\`\``;
 	}
 
-	// Start feature phases after foundation phases
-	const startPhase = 2;
-	const featureList = brief.keyFeatures
-		.map((f, i) => `- Phase ${startPhase + i}: ${f}`)
-		.join("\n");
+	if (lang === "go") {
+		return `### Example of a Haiku-Executable Phase (Go):
 
-	return `---
+\`\`\`markdown
+## Phase 2: Health Endpoint
 
-## 🚨 FEATURE PHASES - MUST BE WRITTEN BY CLAUDE CODE 🚨
+**Goal**: Implement health check endpoint
+**Duration**: 1 day
 
-The following features from PROJECT_BRIEF.md need complete, Haiku-executable phases:
+### Task 2.1: Health Implementation
 
-${featureList}
-${lessonSection}
-**YOU MUST WRITE EACH PHASE** with:
+**Git**: Create branch \`feature/2-1-health\`
 
-1. **Complete code blocks** - Every file must have the FULL implementation, not pseudocode
-2. **Exact file paths** - Real paths like \`${brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}/calendar.py\`, not \`<feature_module>.py\`
-3. **Verification commands** - Commands to run with expected output
-4. **Function signatures with types** - Full type hints, docstrings, error handling
+**Subtask 2.1.1: Health Handler (Single Session)**
 
-### Example of a Haiku-Executable Phase (from HelloCLI):
+**Prerequisites**:
+- [x] 1.1.1: Project Setup
+
+**Deliverables**:
+- [ ] Create \`handlers/health.go\`:
+
+\\\`\\\`\\\`go
+// handlers/health.go
+package handlers
+
+import (
+    "encoding/json"
+    "net/http"
+)
+
+type HealthResponse struct {
+    Status string \`json:"status"\`
+}
+
+func HealthHandler(w http.ResponseWriter, r *http.Request) {
+    resp := HealthResponse{Status: "ok"}
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(resp)
+}
+\\\`\\\`\\\`
+
+- [ ] Create \`handlers/health_test.go\`:
+\\\`\\\`\\\`go
+// handlers/health_test.go
+package handlers
+
+import (
+    "net/http"
+    "net/http/httptest"
+    "testing"
+)
+
+func TestHealthHandler(t *testing.T) {
+    req := httptest.NewRequest("GET", "/health", nil)
+    w := httptest.NewRecorder()
+    HealthHandler(w, req)
+    if w.Code != http.StatusOK {
+        t.Errorf("expected 200, got %d", w.Code)
+    }
+}
+\\\`\\\`\\\`
+
+**Success Criteria**:
+- [ ] \`go build ./...\` passes
+- [ ] \`go test ./handlers -v\` shows tests passing
+- [ ] \`golangci-lint run\` passes
+\`\`\``;
+	}
+
+	// Default to Python example
+	return `### Example of a Haiku-Executable Phase (from HelloCLI):
 
 \`\`\`markdown
 ## Phase 2: Markdown Parsing
@@ -2508,7 +2756,65 @@ def test_file_not_found():
 - [ ] \`pytest tests/test_parser.py -v\` shows 4 tests passing
 - [ ] \`ruff check hello_cli/parser.py\` passes
 - [ ] \`mypy hello_cli/parser.py\` passes
-\`\`\`
+\`\`\``;
+}
+
+function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectType?: string, language?: string): string {
+	if (brief.keyFeatures.length === 0) {
+		return "";
+	}
+
+	// Generate lesson safeguards section if lessons exist
+	let lessonSection = "";
+	if (lessons && lessons.length > 0 && projectType) {
+		const relevantLessons = filterLessonsForProject(lessons, projectType);
+		if (relevantLessons.length > 0) {
+			const criticalLessons = relevantLessons.filter(l => l.severity === "critical");
+			const warningLessons = relevantLessons.filter(l => l.severity === "warning");
+
+			const lessonItems: string[] = [];
+			criticalLessons.forEach(l => lessonItems.push(`- 🔴 **${l.pattern}**: ${l.fix}`));
+			warningLessons.slice(0, 3).forEach(l => lessonItems.push(`- 🟡 **${l.pattern}**: ${l.fix}`));
+
+			if (lessonItems.length > 0) {
+				lessonSection = `
+> **Lessons Learned** (apply to ALL feature phases):
+${lessonItems.join("\n")}
+`;
+			}
+		}
+	}
+
+	// Start feature phases after foundation phases
+	const startPhase = 2;
+	const featureList = brief.keyFeatures
+		.map((f, i) => `- Phase ${startPhase + i}: ${f}`)
+		.join("\n");
+
+	const projectUnderscore = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+	const exampleFilePath = language === "python" ? `${projectUnderscore}/module.py` :
+	                        language === "typescript" || language === "javascript" ? `src/module.ts` :
+	                        language === "static" ? `index.html` :
+	                        language === "go" ? `internal/module.go` : `src/module`;
+
+	const languageExample = getLanguageExample(language || "python");
+
+	return `---
+
+## 🚨 FEATURE PHASES - MUST BE WRITTEN BY CLAUDE CODE 🚨
+
+The following features from PROJECT_BRIEF.md need complete, Haiku-executable phases:
+
+${featureList}
+${lessonSection}
+**YOU MUST WRITE EACH PHASE** with:
+
+1. **Complete code blocks** - Every file must have the FULL implementation, not pseudocode
+2. **Exact file paths** - Real paths like \`${exampleFilePath}\`, not \`<feature_module>.py\`
+3. **Verification commands** - Commands to run with expected output
+4. **Function signatures with types** - Full type hints, docstrings, error handling
+
+${languageExample}
 
 ---
 
