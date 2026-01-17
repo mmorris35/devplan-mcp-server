@@ -27,6 +27,163 @@ export interface BriefInput {
 }
 
 /**
+ * Composite key for template lookup.
+ * Format: "projectType:language:variant?" e.g., "cli:python", "web_app:typescript:static"
+ */
+export interface TemplateKey {
+	projectType: "cli" | "web_app" | "api" | "library";
+	language: "python" | "typescript" | "javascript" | "go" | "rust" | "unknown";
+	variant?: "static" | "serverless" | "fullstack" | "minimal";
+}
+
+/**
+ * Resolve the template key from a project brief.
+ * Analyzes project type, tech stack, and features to determine the best template match.
+ */
+export function resolveTemplateKey(brief: ProjectBrief): TemplateKey {
+	// Normalize project type
+	const declaredType = (brief.projectType.toLowerCase().replace(/[\s-]/g, "_") || "cli") as
+		| "cli"
+		| "web_app"
+		| "api"
+		| "library";
+
+	// Detect language from must_use tech stack
+	const detectedLang = detectLanguage(brief.mustUseTech);
+
+	// Map detected language to TemplateKey language type
+	let language: TemplateKey["language"];
+	switch (detectedLang) {
+		case "python":
+			language = "python";
+			break;
+		case "typescript":
+			language = "typescript";
+			break;
+		case "javascript":
+			language = "javascript";
+			break;
+		default:
+			// Check for Go indicators
+			const techLower = brief.mustUseTech.map((t) => t.toLowerCase()).join(" ");
+			if (techLower.includes("go") || techLower.includes("golang")) {
+				language = "go";
+			} else if (techLower.includes("rust") || techLower.includes("cargo")) {
+				language = "rust";
+			} else {
+				language = "unknown";
+			}
+	}
+
+	// Detect variant (placeholder until detectVariant is implemented in 1.1.2)
+	const variant = detectVariant(brief);
+
+	return {
+		projectType: declaredType,
+		language,
+		variant,
+	};
+}
+
+/**
+ * Convert TemplateKey to string format for lookup.
+ */
+export function templateKeyToString(key: TemplateKey): string {
+	if (key.variant) {
+		return `${key.projectType}:${key.language}:${key.variant}`;
+	}
+	return `${key.projectType}:${key.language}`;
+}
+
+/**
+ * Detect project variant from brief's tech stack and features.
+ * Variants modify template selection for specialized project types.
+ */
+export function detectVariant(brief: ProjectBrief): TemplateKey["variant"] | undefined {
+	const techLower = brief.mustUseTech.map((t) => t.toLowerCase()).join(" ");
+	const featureLower = brief.keyFeatures.map((f) => f.toLowerCase()).join(" ");
+	const combined = techLower + " " + featureLower;
+
+	// Static site detection
+	const staticIndicators = [
+		"static",
+		"jamstack",
+		"11ty",
+		"eleventy",
+		"hugo",
+		"jekyll",
+		"astro",
+		"html only",
+		"css only",
+		"no backend",
+		"frontend only",
+	];
+	const backendIndicators = [
+		"api",
+		"database",
+		"postgres",
+		"mongo",
+		"mysql",
+		"express",
+		"fastapi",
+		"django",
+		"flask",
+		"authentication",
+		"login",
+		"session",
+		"server",
+	];
+
+	const hasStatic = staticIndicators.some((i) => combined.includes(i));
+	const hasBackend = backendIndicators.some((i) => combined.includes(i));
+
+	if (hasStatic && !hasBackend) {
+		return "static";
+	}
+
+	// Serverless detection
+	const serverlessIndicators = [
+		"lambda",
+		"serverless",
+		"cloud function",
+		"edge function",
+		"cloudflare worker",
+		"vercel function",
+		"netlify function",
+	];
+	if (serverlessIndicators.some((i) => combined.includes(i))) {
+		return "serverless";
+	}
+
+	// Minimal detection (no framework specified)
+	const frameworkIndicators = [
+		"react",
+		"vue",
+		"angular",
+		"svelte",
+		"next",
+		"nuxt",
+		"express",
+		"fastapi",
+		"django",
+		"flask",
+		"click",
+		"typer",
+		"gin",
+		"echo",
+		"chi",
+	];
+	const hasFramework = frameworkIndicators.some((i) => techLower.includes(i));
+
+	if (!hasFramework && brief.mustUseTech.length > 0) {
+		// Has tech requirements but no framework - use minimal
+		return "minimal";
+	}
+
+	return undefined; // Use default variant for project type
+}
+
+/**
  * Conflict matrix for detecting incompatible technology choices.
  * Each entry is [tech1, tech2, reason] where tech1 and tech2 conflict.
  */

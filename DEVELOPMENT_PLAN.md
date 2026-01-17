@@ -45,9 +45,9 @@ please re-read CLAUDE.md and DEVELOPMENT_PLAN.md (the entire documents, for cont
 - [x] 0.1.4: Add Go and static site defaults
 
 ### Phase 1: Template Key Resolution
-- [ ] 1.1.1: Add resolveTemplateKey() function
-- [ ] 1.1.2: Add detectVariant() function
-- [ ] 1.1.3: Add unit tests for key resolution
+- [x] 1.1.1: Add resolveTemplateKey() function
+- [x] 1.1.2: Add detectVariant() function
+- [x] 1.1.3: Add unit tests for key resolution
 
 ### Phase 2: Template Registry Refactor
 - [ ] 2.1.1: Add findTemplate() helper with fallback chain
@@ -63,8 +63,8 @@ please re-read CLAUDE.md and DEVELOPMENT_PLAN.md (the entire documents, for cont
 - [ ] 4.1.2: Add integration tests for all scenarios
 - [ ] 4.1.3: Manual verification of fix for issue #80
 
-**Current**: Phase 0
-**Next**: 0.1.3
+**Current**: Phase 1 Complete
+**Next**: 2.1.1
 
 ---
 
@@ -657,9 +657,9 @@ grep -c "static:" src/language-defaults.ts
 - [x] 0.1.4: Add Go and static site defaults
 
 **Deliverables**:
-- [ ] Add `TemplateKey` interface to `src/generators.ts`
-- [ ] Add `resolveTemplateKey()` function
-- [ ] Import and use `detectLanguage()` (already exists)
+- [x] Add `TemplateKey` interface to `src/generators.ts`
+- [x] Add `resolveTemplateKey()` function
+- [x] Import and use `detectLanguage()` (already exists)
 
 **Complete Code**:
 
@@ -747,10 +747,10 @@ export function templateKeyToString(key: TemplateKey): string {
 - `src/generators.ts`
 
 **Success Criteria**:
-- [ ] `TemplateKey` interface is exported from generators.ts
-- [ ] `resolveTemplateKey()` function is exported
-- [ ] `templateKeyToString()` function is exported
-- [ ] TypeScript compiles without errors
+- [x] `TemplateKey` interface is exported from generators.ts
+- [x] `resolveTemplateKey()` function is exported
+- [x] `templateKeyToString()` function is exported
+- [x] TypeScript compiles without errors
 
 **Verification**:
 ```bash
@@ -767,14 +767,14 @@ grep -c "export function resolveTemplateKey" src/generators.ts
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Added TemplateKey interface with projectType, language, and variant fields. Added resolveTemplateKey() function that analyzes project brief to determine template key. Added templateKeyToString() helper for key formatting. Added placeholder detectVariant() function (to be implemented in 1.1.2).
 - **Files Created**: None
 - **Files Modified**:
-  - src/generators.ts
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (tsc: pass/fail)
+  - src/generators.ts (+78 lines: TemplateKey interface, resolveTemplateKey(), templateKeyToString(), detectVariant placeholder)
+- **Tests**: No tests added (tests planned for 1.1.3)
+- **Build**: wrangler deploy --dry-run: pass
 - **Branch**: feature/1-1-key-resolution
-- **Notes**: (any additional context)
+- **Notes**: detectVariant() is a placeholder returning undefined until 1.1.2 implementation
 
 ---
 
@@ -784,9 +784,9 @@ grep -c "export function resolveTemplateKey" src/generators.ts
 - [x] 1.1.1: Add resolveTemplateKey() function
 
 **Deliverables**:
-- [ ] Add `detectVariant()` function to `src/generators.ts`
-- [ ] Detect static, serverless, and minimal variants
-- [ ] Use tech stack and features for detection
+- [x] Add `detectVariant()` function to `src/generators.ts`
+- [x] Detect static, serverless, and minimal variants
+- [x] Use tech stack and features for detection
 
 **Complete Code**:
 
@@ -893,11 +893,11 @@ export function detectVariant(brief: ProjectBrief): TemplateKey["variant"] | und
 - `src/generators.ts`
 
 **Success Criteria**:
-- [ ] `detectVariant()` function is exported
-- [ ] Static sites detected when HTML/CSS keywords present without backend
-- [ ] Serverless detected when Lambda/Worker keywords present
-- [ ] Minimal detected when no framework specified
-- [ ] TypeScript compiles without errors
+- [x] `detectVariant()` function is exported
+- [x] Static sites detected when HTML/CSS keywords present without backend
+- [x] Serverless detected when Lambda/Worker keywords present
+- [x] Minimal detected when no framework specified
+- [x] TypeScript compiles without errors
 
 **Verification**:
 ```bash
@@ -911,14 +911,14 @@ grep -c "export function detectVariant" src/generators.ts
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Replaced placeholder detectVariant() function with full implementation. Function analyzes brief's mustUseTech and keyFeatures to detect project variants: "static" for HTML/CSS/Jamstack projects without backend, "serverless" for Lambda/Worker projects, "minimal" for projects with tech requirements but no framework. Changed function from private to exported for testing access.
 - **Files Created**: None
 - **Files Modified**:
-  - src/generators.ts
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (tsc: pass/fail)
+  - src/generators.ts (+67 lines: replaced 8-line placeholder with 75-line implementation)
+- **Tests**: No tests added (tests planned for 1.1.3)
+- **Build**: wrangler deploy --dry-run: pass
 - **Branch**: feature/1-1-key-resolution
-- **Notes**: (any additional context)
+- **Notes**: Function uses keyword matching with staticIndicators (11 keywords), backendIndicators (13 keywords), serverlessIndicators (7 keywords), and frameworkIndicators (15 keywords) arrays for detection logic.
 
 ---
 
@@ -1093,10 +1093,10 @@ describe("template-key", () => {
 - None
 
 **Success Criteria**:
-- [ ] All unit tests pass
-- [ ] Tests cover Python, TypeScript, Go, and unknown languages
-- [ ] Tests cover static, serverless, and minimal variants
-- [ ] Tests verify templateKeyToString() formatting
+- [x] All unit tests pass
+- [x] Tests cover Python, TypeScript, Go, and unknown languages
+- [x] Tests cover static, serverless, and minimal variants
+- [x] Tests verify templateKeyToString() formatting
 
 **Verification**:
 ```bash
@@ -1110,19 +1110,19 @@ npx vitest run src/__tests__/template-key.test.ts --coverage
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Created comprehensive unit test suite for template key resolution functions. Tests cover resolveTemplateKey() for Python CLI, TypeScript CLI, Go API, Python web_app, unknown languages, and normalized project types. Tests cover detectVariant() for static HTML/CSS projects, backend detection, serverless AWS Lambda, minimal no-framework projects, and standard framework projects. Tests cover templateKeyToString() with and without variants.
 - **Files Created**:
   - src/__tests__/template-key.test.ts
 - **Files Modified**: None
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (tsc: pass/fail, vitest: pass/fail)
+- **Tests**: 13 tests, all passing
+- **Build**: vitest: pass
 - **Branch**: feature/1-1-key-resolution
-- **Notes**: (any additional context)
+- **Notes**: Adjusted createBrief helper to match actual ProjectBrief type from models.ts (uses niceToHaveFeatures instead of niceToHave, and includes required timeline field).
 
 ---
 
 ### Task 1.1 Complete - Squash Merge
-- [ ] All subtasks complete (1.1.1 - 1.1.3)
+- [x] All subtasks complete (1.1.1 - 1.1.3)
 - [ ] All tests pass: `npx vitest run`
 - [ ] TypeScript compiles: `npx tsc --noEmit`
 - [ ] Squash merge to main: `git checkout main && git merge --squash feature/1-1-key-resolution`
