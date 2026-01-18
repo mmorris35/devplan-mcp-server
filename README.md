@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple.svg)](https://modelcontextprotocol.io)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
-[![19 Tools](https://img.shields.io/badge/Tools-19-blue.svg)](#tools)
+[![21 Tools](https://img.shields.io/badge/Tools-21-blue.svg)](#tools)
 
 **Transform ideas into executable development plans** — an MCP server that brings the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) methodology to Claude Code.
 
@@ -72,7 +72,7 @@ Or add to `~/.claude/mcp.json`:
 ## Quick Start
 
 ```
-You: "Use devplan to help me build a CLI tool for managing dotfiles"
+You: "Use devplan_start to help me build a CLI tool for managing dotfiles"
 ```
 
 That's it. DevPlan will guide Claude through the entire process:
@@ -124,7 +124,7 @@ sequenceDiagram
 
 ### New Project
 ```
-"Use devplan to help me build [your idea]"
+"Use devplan_start to help me build [your idea]"
 ```
 
 ### Fix a GitHub Issue
@@ -192,6 +192,12 @@ Convert GitHub issues into structured remediation tasks — perfect for bug fixe
 | `devplan_parse_issue` | Analyze a GitHub issue to extract requirements |
 | `devplan_issue_to_task` | Generate remediation task with subtasks from an issue |
 
+### Analytics
+
+| Tool | Purpose |
+|------|---------|
+| `devplan_usage_stats` | View usage distribution across users (unique users, requests/user, histograms) |
+
 ```mermaid
 flowchart LR
     A["gh issue view 123 --json ..."] --> B[devplan_parse_issue]
@@ -216,13 +222,15 @@ graph TB
 
     subgraph MCP["DevPlan MCP Server"]
         SSE[SSE Endpoint]
-        Tools[19 MCP Tools]
+        Dash[Dashboard]
+        Tools[21 MCP Tools]
         Gen[Plan Generators]
     end
 
     subgraph Storage["Cloudflare"]
-        KV[(Lessons KV)]
+        KV[(KV Storage)]
         DO[Durable Objects]
+        SQL[(SQLite per-DO)]
     end
 
     subgraph Methodology["Reference"]
@@ -234,18 +242,86 @@ graph TB
     Tools --> Gen
     Gen --> KV
     Tools --> DO
+    DO --> SQL
+    SQL -->|cleanup| KV
+    Dash --> KV
     Gen -.->|examples| GH
 
     style CC fill:#e3f2fd,stroke:#1565c0
     style KV fill:#fff3e0,stroke:#ef6c00
+    style SQL fill:#e8f5e9,stroke:#388e3c
     style GH fill:#f3e5f5,stroke:#7b1fa2
 ```
+
+### Storage Strategy
+
+| Data | Location | Rationale |
+|------|----------|-----------|
+| Session metadata | SQLite (per-DO) | Auto-deleted when DO destroyed |
+| Lessons learned | KV | Global access across sessions |
+| Aggregated analytics | KV | Fast dashboard reads |
+| Cleanup schedules | DO Alarms | Native, reliable triggering |
+
+## Dashboard & Analytics
+
+DevPlan includes a public dashboard for viewing aggregate usage statistics:
+
+**Dashboard URL**: [devplan-mcp-server.mike-c63.workers.dev/dashboard](https://devplan-mcp-server.mike-c63.workers.dev/dashboard)
+
+**API Endpoint**: [devplan-mcp-server.mike-c63.workers.dev/dashboard/api/stats](https://devplan-mcp-server.mike-c63.workers.dev/dashboard/api/stats)
+
+The dashboard shows:
+- **Summary cards**: Total sessions, total tool calls, countries reached
+- **Line chart**: Sessions and tool calls over the last 30 days
+- **Country table**: Top 10 countries by session count
+
+### Session Tracking & Cleanup
+
+Each MCP session is tracked with metadata stored in SQLite (per Durable Object):
+- Session ID and timestamps (created, last activity)
+- Geographic data (country, region, continent from Cloudflare)
+- Tool call count and transport type (SSE/HTTP)
+
+**Automatic Cleanup**: Sessions are automatically cleaned up to prevent storage bloat:
+- After **7 days of inactivity**, or
+- After **30 days maximum age**
+
+When a session expires, its metrics are aggregated to KV storage before cleanup.
+
+### Privacy
+
+All analytics are privacy-preserving:
+- **No IP storage**: Only Cloudflare-derived country/region codes
+- **No user identification**: Sessions are anonymous
+- **Auto-expiration**: Daily stats expire after 90 days via KV TTL
+- **Public dashboard**: Shows only aggregate statistics
+
+### Usage Stats via MCP
+
+You can also query usage statistics programmatically:
+
+```
+"Use devplan_usage_stats to show me the last 7 days of usage"
+```
+
+This returns detailed breakdowns including unique users, requests per user, and distribution histograms.
 
 ## Recent Updates
 
 ```mermaid
 timeline
     title DevPlan MCP Server - December 2025 / January 2026
+
+    section Week 6
+        Session Cleanup : Auto-cleanup after 7d inactivity or 30d max
+        Usage Dashboard : Chart.js visualization at /dashboard
+        Analytics API : JSON endpoint at /dashboard/api/stats
+        SQLite Tracking : Per-session metadata in Durable Objects
+
+    section Week 5
+        Usage Dashboard : Public dashboard with aggregate stats
+        Session Tracking : Track unique users per day
+        Analytics Tool : devplan_usage_stats MCP tool
 
     section Week 4
         Haiku-Executable Phases : Claude writes complete code, not scaffolds
@@ -310,6 +386,10 @@ npm run deploy   # Deploy to Cloudflare Workers
 
 Contributions welcome! Please see the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) repo for methodology details.
 
+## Community
+
+Love DevPlan? Share your experience with **#devplanmcp** on social media!
+
 ## License
 
 MIT
@@ -321,4 +401,6 @@ MIT
   <a href="https://modelcontextprotocol.io">Model Context Protocol</a> •
   <a href="https://workers.cloudflare.com/">Cloudflare Workers</a> •
   <a href="https://github.com/mmorris35/ClaudeCode-DevPlanBuilder">DevPlanBuilder Methodology</a>
+  <br><br>
+  💬 <b>#devplanmcp</b>
 </p>
