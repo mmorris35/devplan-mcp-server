@@ -4,6 +4,44 @@ import { z } from "zod";
 
 import { addRateLimitHeaders, unauthorizedResponse, validateRequest } from "./auth";
 import {
+	SESSION_METADATA_SCHEMA,
+	extractGeoFromRequest,
+	generateSessionId,
+	createSessionMetadataSQL,
+	updateActivitySQL,
+	parseSessionMetadata,
+	shouldExpireSession,
+	aggregateSessionToKV,
+	type SessionMetadata,
+} from "./session-tracking";
+import { handleDashboard, handleDashboardAPI } from "./dashboard";
+
+// Hash IP address for privacy-preserving usage tracking
+async function hashIP(ip: string): Promise<string> {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(ip + "-devplan-salt");
+	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Track usage in KV (call this for each MCP request)
+async function trackUsage(request: Request, env: Env): Promise<void> {
+	try {
+		const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+		const hashedUser = await hashIP(ip);
+		const today = new Date().toISOString().split("T")[0];
+		const key = `usage:${today}:${hashedUser}`;
+
+		const currentCount = parseInt(await env.DEVPLAN_KV.get(key) || "0");
+		await env.DEVPLAN_KV.put(key, String(currentCount + 1), {
+			expirationTtl: 86400 * 30 // Keep for 30 days
+		});
+	} catch {
+		// Don't fail the request if tracking fails
+	}
+}
+import {
 	createBrief,
 	detectTechConflicts,
 	filterLessonsForProject,
@@ -35,6 +73,9 @@ import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
 interface Env {
 	AUTH_ENABLED: string;
 	FREE_TIER_LIMIT: string;
+	SESSION_INACTIVITY_TTL_DAYS: string;
+	SESSION_ABSOLUTE_TTL_DAYS: string;
+	CLEANUP_CHECK_HOURS: string;
 	DEVPLAN_KV: KVNamespace;
 	MCP_OBJECT: DurableObjectNamespace;
 }
@@ -44,6 +85,125 @@ export class DevPlanMCP extends McpAgent {
 		name: "DevPlan",
 		version: "1.0.0",
 	});
+
+	// Session metadata cache (to avoid repeated SQLite reads)
+	private sessionId: string | null = null;
+
+	/**
+	 * Initialize session tracking when the Durable Object starts.
+	 * Called automatically by the McpAgent framework.
+	 */
+	async onStart(): Promise<void> {
+		// Call parent onStart to ensure MCP initialization
+		await super.onStart();
+
+		const env = (this as unknown as { env: Env }).env;
+		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
+		const request = (this as unknown as { request?: Request }).request;
+
+		// Initialize SQLite schema
+		try {
+			ctx.storage.sql.exec(SESSION_METADATA_SCHEMA);
+		} catch {
+			// Schema already exists or error - continue
+		}
+
+		// Generate session ID and extract geolocation
+		this.sessionId = generateSessionId();
+		const geo = request ? extractGeoFromRequest(request) : {
+			countryCode: null,
+			regionCode: null,
+			continent: null,
+		};
+		const transportType = request?.url?.includes("/sse") ? "sse" : "http";
+
+		// Insert session metadata
+		try {
+			const insertSQL = createSessionMetadataSQL(this.sessionId, geo, transportType);
+			ctx.storage.sql.exec(insertSQL);
+		} catch {
+			// Insert failed - continue without tracking
+		}
+
+		// Schedule first cleanup check using the agents SDK schedule method
+		const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
+		try {
+			await this.schedule(checkHours * 60 * 60, "checkExpiration");
+		} catch {
+			// Scheduling failed - continue without cleanup
+		}
+	}
+
+	/**
+	 * Scheduled callback to check if session should be expired.
+	 * Called by the agents SDK scheduler.
+	 */
+	async checkExpiration(): Promise<void> {
+		const env = (this as unknown as { env: Env }).env;
+		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
+
+		// Get session metadata from SQLite
+		let metadata: SessionMetadata | null = null;
+		try {
+			const result = ctx.storage.sql.exec("SELECT * FROM session_metadata WHERE id = 'singleton'");
+			const rows = [...result];
+			if (rows.length > 0) {
+				metadata = parseSessionMetadata(rows[0] as Record<string, unknown>);
+			}
+		} catch {
+			// No session metadata - destroy this orphan DO
+			// Note: destroy() is not available in all runtimes, so we just let it expire
+			return;
+		}
+
+		if (!metadata) {
+			return;
+		}
+
+		// Check expiration
+		const inactivityDays = parseInt(env.SESSION_INACTIVITY_TTL_DAYS || "7");
+		const absoluteDays = parseInt(env.SESSION_ABSOLUTE_TTL_DAYS || "30");
+
+		if (shouldExpireSession(metadata, inactivityDays, absoluteDays)) {
+			// Aggregate session data to KV before cleanup
+			try {
+				await aggregateSessionToKV(env.DEVPLAN_KV, metadata);
+			} catch {
+				// Aggregation failed - continue with cleanup anyway
+			}
+
+			// Clean up SQLite data
+			try {
+				ctx.storage.sql.exec("DELETE FROM session_metadata WHERE id = 'singleton'");
+			} catch {
+				// Cleanup failed
+			}
+
+			// Note: We can't call this.destroy() directly in Workers
+			// The DO will be garbage collected when no references remain
+			return;
+		}
+
+		// Reschedule the check
+		const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
+		try {
+			await this.schedule(checkHours * 60 * 60, "checkExpiration");
+		} catch {
+			// Rescheduling failed
+		}
+	}
+
+	/**
+	 * Update activity timestamp when tools are called.
+	 */
+	private updateActivity(): void {
+		try {
+			const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
+			ctx.storage.sql.exec(updateActivitySQL());
+		} catch {
+			// Activity update failed - non-critical
+		}
+	}
 
 	async init() {
 		// Tool 0: devplan_start - The main entry point
@@ -864,7 +1024,10 @@ The verifier will:
 
 Any issues found can be captured as lessons learned using \`devplan_extract_lessons_from_report\`.
 
-**Don't skip this step!** The verifier catches issues before users do.`;
+**Don't skip this step!** The verifier catches issues before users do.
+
+---
+💬 **Love DevPlan?** Share your experience with **#devplanmcp** on social media!`;
 
 				const output = `# Development Plan Progress Summary
 
@@ -1540,6 +1703,144 @@ gh issue view 803 --json number,title,body,labels,comments,url
 				}
 			}
 		);
+
+		// Tool 20: devplan_usage_stats - View usage distribution
+		this.server.tool(
+			"devplan_usage_stats",
+			"View usage statistics showing how requests are distributed across users. Helps understand if usage is concentrated among few users or spread across many.",
+			{
+				date: z.string().optional().describe("Date to query (YYYY-MM-DD format). Defaults to today."),
+				days: z.number().optional().describe("Number of days to include (1-30). Defaults to 7."),
+			},
+			async ({ date, days = 7 }) => {
+				const env = (this as unknown as { env: Env }).env;
+
+				// Collect stats for the date range
+				const stats: Array<{
+					date: string;
+					uniqueUsers: number;
+					totalRequests: number;
+					requestsPerUser: number[];
+				}> = [];
+
+				const endDate = date ? new Date(date) : new Date();
+				const clampedDays = Math.min(Math.max(days, 1), 30);
+
+				for (let i = 0; i < clampedDays; i++) {
+					const d = new Date(endDate);
+					d.setDate(d.getDate() - i);
+					const dateStr = d.toISOString().split("T")[0];
+
+					// List all keys for this date
+					const listResult = await env.DEVPLAN_KV.list({ prefix: `usage:${dateStr}:` });
+
+					const requestCounts: number[] = [];
+					let totalRequests = 0;
+
+					for (const key of listResult.keys) {
+						const count = parseInt(await env.DEVPLAN_KV.get(key.name) || "0");
+						if (count > 0) {
+							requestCounts.push(count);
+							totalRequests += count;
+						}
+					}
+
+					// Sort descending for percentile calculations
+					requestCounts.sort((a, b) => b - a);
+
+					stats.push({
+						date: dateStr,
+						uniqueUsers: requestCounts.length,
+						totalRequests,
+						requestsPerUser: requestCounts,
+					});
+				}
+
+				// Calculate aggregate stats
+				const totalUsers = new Set(stats.flatMap(s => s.requestsPerUser.map((_, i) => `${s.date}:${i}`))).size;
+				const totalRequests = stats.reduce((sum, s) => sum + s.totalRequests, 0);
+				const allRequestCounts = stats.flatMap(s => s.requestsPerUser).sort((a, b) => b - a);
+
+				// Distribution analysis
+				const median = allRequestCounts.length > 0
+					? allRequestCounts[Math.floor(allRequestCounts.length / 2)]
+					: 0;
+				const p90 = allRequestCounts.length > 0
+					? allRequestCounts[Math.floor(allRequestCounts.length * 0.1)]
+					: 0;
+				const max = allRequestCounts[0] || 0;
+				const avg = allRequestCounts.length > 0
+					? Math.round(totalRequests / allRequestCounts.length)
+					: 0;
+
+				// Daily breakdown
+				const dailyBreakdown = stats.map(s => {
+					const avg = s.uniqueUsers > 0 ? Math.round(s.totalRequests / s.uniqueUsers) : 0;
+					const max = s.requestsPerUser[0] || 0;
+					return `| ${s.date} | ${s.uniqueUsers} | ${s.totalRequests.toLocaleString()} | ${avg} | ${max} |`;
+				}).join("\n");
+
+				// Build histogram buckets
+				const buckets = [
+					{ label: "1-10", min: 1, max: 10, count: 0 },
+					{ label: "11-50", min: 11, max: 50, count: 0 },
+					{ label: "51-100", min: 51, max: 100, count: 0 },
+					{ label: "101-500", min: 101, max: 500, count: 0 },
+					{ label: "500+", min: 501, max: Infinity, count: 0 },
+				];
+
+				for (const count of allRequestCounts) {
+					for (const bucket of buckets) {
+						if (count >= bucket.min && count <= bucket.max) {
+							bucket.count++;
+							break;
+						}
+					}
+				}
+
+				const histogram = buckets
+					.filter(b => b.count > 0)
+					.map(b => {
+						const bar = "█".repeat(Math.min(Math.ceil(b.count / 2), 30));
+						return `| ${b.label.padEnd(7)} | ${bar} ${b.count} |`;
+					}).join("\n");
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `# DevPlan MCP Usage Statistics
+
+## Summary (Last ${clampedDays} days)
+
+| Metric | Value |
+|--------|-------|
+| **Total Requests** | ${totalRequests.toLocaleString()} |
+| **Unique User-Days** | ${allRequestCounts.length} |
+| **Avg Requests/User/Day** | ${avg} |
+| **Median Requests/User** | ${median} |
+| **90th Percentile** | ${p90} |
+| **Max (Power User)** | ${max} |
+
+## Daily Breakdown
+
+| Date | Users | Requests | Avg/User | Max |
+|------|-------|----------|----------|-----|
+${dailyBreakdown}
+
+## Request Distribution (Requests per User)
+
+| Range   | Users |
+|---------|-------|
+${histogram || "| (no data) | |"}
+
+---
+*Note: Users are identified by hashed IP addresses for privacy. Each unique IP per day counts as one "user-day".*`,
+						},
+					],
+				};
+			}
+		);
 	}
 }
 
@@ -1564,6 +1865,14 @@ export default {
 			);
 		}
 
+		// Dashboard endpoints - no auth required (public aggregate stats only)
+		if (url.pathname === "/dashboard") {
+			return handleDashboard(request, env);
+		}
+		if (url.pathname === "/dashboard/api/stats") {
+			return handleDashboardAPI(env);
+		}
+
 		// MCP endpoints - apply auth middleware
 		if (url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp") {
 			// Validate API key and rate limits (passes through if AUTH_ENABLED=false)
@@ -1571,6 +1880,9 @@ export default {
 			if (!authResult.authorized) {
 				return unauthorizedResponse(authResult.error || "Unauthorized");
 			}
+
+			// Track usage (non-blocking)
+			ctx.waitUntil(trackUsage(request, env));
 
 			// Route to appropriate handler
 			let response: Response;
