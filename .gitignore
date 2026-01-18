@@ -18,3 +18,12 @@ server.json
 
 # Build
 dist/
+
+# DevPlan planning artifacts
+PROJECT_BRIEF.md
+DEVELOPMENT_PLAN.md
+CLAUDE.md
+.claude/
+
+# Generated types
+worker-configuration.d.ts
