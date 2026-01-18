@@ -211,7 +211,9 @@ export class DevPlanMCP extends McpAgent {
 			"devplan_start",
 			"START HERE: Initialize a new project using the DevPlan methodology. This tool provides comprehensive inline instructions for building a development plan that Claude Code can execute step-by-step.",
 			{},
-			async () => ({
+			async () => {
+				this.updateActivity();
+				return {
 				content: [
 					{
 						type: "text",
@@ -604,7 +606,8 @@ Use devplan_extract_lessons_from_report with the verification report
 **Then**: Start by asking the user: **"What's your project name?"**`,
 					},
 				],
-			})
+			};
+			}
 		);
 
 		// Tool 1: devplan_interview_questions
@@ -612,14 +615,17 @@ Use devplan_extract_lessons_from_report with the verification report
 			"devplan_interview_questions",
 			"Get interview questions to ask the user about their project. Ask these ONE AT A TIME, waiting for responses.",
 			{},
-			async () => ({
+			async () => {
+				this.updateActivity();
+				return {
 				content: [
 					{
 						type: "text",
 						text: `Ask the user each of these questions ONE AT A TIME. Wait for their response before asking the next question.\n\n${JSON.stringify(INTERVIEW_QUESTIONS, null, 2)}`,
 					},
 				],
-			})
+			};
+			}
 		);
 
 		// Tool 2: devplan_create_brief
@@ -645,6 +651,7 @@ Use devplan_extract_lessons_from_report with the verification report
 				nice_to_have: z.array(z.string()).optional().describe("Nice-to-have features for v2"),
 			},
 			async ({ name, project_type, goal, target_users, features, tech_stack, timeline, team_size, constraints, nice_to_have }) => {
+				this.updateActivity();
 				// Check for tech stack conflicts
 				const techConflicts = tech_stack?.must_use
 					? detectTechConflicts(tech_stack.must_use)
@@ -694,6 +701,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 				response_format: z.enum(["json", "markdown"]).default("json").describe("Output format"),
 			},
 			async ({ content, response_format }) => {
+				this.updateActivity();
 				const parsed = parseBrief(content);
 				const output =
 					response_format === "json"
@@ -716,6 +724,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 					.describe("Minimum severity of lessons to include. 'critical' = only critical, 'warning' = critical + warning, 'info' = all (default)"),
 			},
 			async ({ brief_content, min_severity }) => {
+				this.updateActivity();
 				// Get lessons from KV first - they're used for both:
 				// 1. Injecting into subtask success criteria
 				// 2. Adding safeguards section
@@ -814,6 +823,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				test_coverage: z.number().default(80).describe("Required coverage percentage"),
 			},
 			async ({ brief_content, language, test_coverage }) => {
+				this.updateActivity();
 				const claudeMd = generateClaudeMd(brief_content, language, test_coverage);
 				return {
 					content: [
@@ -835,6 +845,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				response_format: z.enum(["json", "markdown"]).default("json").describe("Output format"),
 			},
 			async ({ project_type, response_format }) => {
+				this.updateActivity();
 				let templates = listTemplates();
 				if (project_type) {
 					templates = templates.filter((t) => t.type === project_type);
@@ -860,6 +871,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				strict: z.boolean().default(false).describe("Treat warnings as errors"),
 			},
 			async ({ content, strict }) => {
+				this.updateActivity();
 				const result = validatePlan(content, strict);
 				return {
 					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -876,6 +888,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				subtask_id: z.string().describe("ID in format X.Y.Z"),
 			},
 			async ({ plan_content, subtask_id }) => {
+				this.updateActivity();
 				const result = getSubtask(plan_content, subtask_id);
 				return {
 					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -893,6 +906,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				completion_notes: z.string().describe("Notes about completion"),
 			},
 			async ({ plan_content, subtask_id, completion_notes }) => {
+				this.updateActivity();
 				const updated = updateProgress(plan_content, subtask_id, completion_notes);
 				return {
 					content: [
@@ -914,6 +928,7 @@ NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris3
 				language: z.string().default("python").describe("Primary language (python or typescript)"),
 			},
 			async ({ brief_content, language }) => {
+				this.updateActivity();
 				const { content, filePath } = generateExecutorAgent(brief_content, language);
 				return {
 					content: [
@@ -954,6 +969,7 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 				language: z.string().default("python").describe("Primary language (python or typescript)"),
 			},
 			async ({ brief_content, language }) => {
+				this.updateActivity();
 				const { content, filePath } = generateVerifierAgent(brief_content, language);
 				return {
 					content: [
@@ -993,6 +1009,7 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 				plan_content: z.string().describe("DEVELOPMENT_PLAN.md content"),
 			},
 			async ({ plan_content }) => {
+				this.updateActivity();
 				const summary = generateProgressSummary(plan_content);
 
 				// Format as readable markdown
@@ -1064,6 +1081,7 @@ ${recentLines}
 				severity: z.enum(["critical", "warning", "info"]).default("warning").describe("Severity: critical (must fix), warning (should fix), info (nice to know)"),
 			},
 			async ({ issue, root_cause, fix, pattern, project_types, severity }) => {
+				this.updateActivity();
 				const lesson: Lesson = {
 					id: generateLessonId(),
 					issue,
@@ -1119,6 +1137,7 @@ This lesson will be included in future plan generation for ${lesson.projectTypes
 				include_archived: z.boolean().default(false).describe("Include archived lessons in the list"),
 			},
 			async ({ project_type, include_archived }) => {
+				this.updateActivity();
 				// Get lessons from KV
 				const env = (this as unknown as { env: Env }).env;
 				let lessons: Lesson[] = [];
@@ -1224,6 +1243,7 @@ ${info.map(l => formatLesson(l)).join("\n\n")}
 				confirm: z.boolean().default(false).describe("Set to true to actually delete. Without this, only shows what would be deleted."),
 			},
 			async ({ lesson_id, pattern, confirm }) => {
+				this.updateActivity();
 				if (!lesson_id && !pattern) {
 					return {
 						content: [
@@ -1315,6 +1335,7 @@ ${toDelete.map(l => `- ${l.pattern}`).join("\n")}
 				archive: z.boolean().default(true).describe("true to archive, false to unarchive"),
 			},
 			async ({ lesson_id, archive }) => {
+				this.updateActivity();
 				const env = (this as unknown as { env: Env }).env;
 				let lessons: Lesson[] = [];
 				try {
@@ -1393,6 +1414,7 @@ ${toDelete.map(l => `- ${l.pattern}`).join("\n")}
 				project_type: z.string().optional().describe("Project type to associate with extracted lessons (e.g., 'cli', 'api')"),
 			},
 			async ({ report_content, project_type }) => {
+				this.updateActivity();
 				const extractedLessons: Array<{
 					issue: string;
 					rootCause: string;
@@ -1553,6 +1575,7 @@ ${extractedLessons.map((l, i) => `---
 				issue_content: z.string().describe("JSON output from `gh issue view <number> --json number,title,body,labels,comments,url`"),
 			},
 			async ({ issue_content }) => {
+				this.updateActivity();
 				try {
 					const issue = parseIssueContent(issue_content);
 					const classification = classifyIssue(issue);
@@ -1628,6 +1651,7 @@ gh issue view 803 --json number,title,body,labels,comments,url
 				language: z.string().optional().describe("Primary language (python, typescript) for appropriate test patterns"),
 			},
 			async ({ issue_content, existing_plan, mode, project_type, language }) => {
+				this.updateActivity();
 				try {
 					const issue = parseIssueContent(issue_content);
 					const task = generateRemediationTask(issue, existing_plan, project_type, language);
@@ -1713,6 +1737,7 @@ gh issue view 803 --json number,title,body,labels,comments,url
 				days: z.number().optional().describe("Number of days to include (1-30). Defaults to 7."),
 			},
 			async ({ date, days = 7 }) => {
+				this.updateActivity();
 				const env = (this as unknown as { env: Env }).env;
 
 				// Collect stats for the date range
