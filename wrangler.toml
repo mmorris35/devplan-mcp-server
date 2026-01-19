@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 AUTH_ENABLED = "false"  # Set to "true" to require API keys
 FREE_TIER_LIMIT = "100"  # Requests per month for free tier
-SESSION_INACTIVITY_TTL_DAYS = "7"  # Days of inactivity before session cleanup
+SESSION_INACTIVITY_TTL_DAYS = "1"  # Days of inactivity before session cleanup
 SESSION_ABSOLUTE_TTL_DAYS = "30"   # Maximum session age in days
 CLEANUP_CHECK_HOURS = "6"          # Hours between cleanup alarm checks
 

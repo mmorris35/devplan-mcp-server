@@ -1900,6 +1900,36 @@ export default {
 
 		// MCP endpoints - apply auth middleware
 		if (url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp") {
+			// Block non-MCP clients to prevent DO bloat from bots/crawlers
+			const userAgent = request.headers.get("User-Agent") || "";
+			const accept = request.headers.get("Accept") || "";
+
+			// Block common bots and crawlers
+			const botPatterns = /bot|crawler|spider|scraper|curl|wget|python-requests|go-http|java\/|php\/|ruby/i;
+			if (botPatterns.test(userAgent)) {
+				return new Response("Forbidden: Bot access not allowed", { status: 403 });
+			}
+
+			// Validate SSE endpoint requests
+			if (url.pathname === "/sse") {
+				// SSE clients must accept text/event-stream
+				if (!accept.includes("text/event-stream") && !accept.includes("*/*")) {
+					return new Response("Bad Request: SSE endpoint requires Accept: text/event-stream", { status: 400 });
+				}
+			}
+
+			// Validate /mcp endpoint requests
+			if (url.pathname === "/mcp" && request.method === "POST") {
+				const contentType = request.headers.get("Content-Type") || "";
+				// MCP HTTP clients must send JSON and accept both JSON and event-stream
+				if (!contentType.includes("application/json")) {
+					return new Response("Bad Request: MCP endpoint requires Content-Type: application/json", { status: 400 });
+				}
+				if (!accept.includes("application/json") && !accept.includes("*/*")) {
+					return new Response("Bad Request: MCP endpoint requires Accept header with application/json", { status: 400 });
+				}
+			}
+
 			// Validate API key and rate limits (passes through if AUTH_ENABLED=false)
 			const authResult = await validateRequest(request, env);
 			if (!authResult.authorized) {
