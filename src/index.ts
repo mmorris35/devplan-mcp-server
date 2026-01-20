@@ -1936,8 +1936,8 @@ export default {
 				return unauthorizedResponse(authResult.error || "Unauthorized");
 			}
 
-			// Track usage (non-blocking)
-			ctx.waitUntil(trackUsage(request, env));
+			// Usage tracking disabled to stay within KV free tier limits
+			// ctx.waitUntil(trackUsage(request, env));
 
 			// Route to appropriate handler
 			let response: Response;
