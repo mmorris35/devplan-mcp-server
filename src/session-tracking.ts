@@ -257,12 +257,25 @@ export async function fetchDashboardData(kv: KVNamespace): Promise<{
 	recentDays: DailyStats[];
 	topCountries: CountryStats[];
 }> {
-	// Fetch last 30 days of usage stats from usage:* keys
-	// These are populated by trackUsage() in index.ts
+	// Fetch totals from analytics:totals (populated by session expiration)
+	let totals: AnalyticsTotals = {
+		totalSessions: 0,
+		totalToolCalls: 0,
+		lastUpdated: new Date().toISOString(),
+	};
+	try {
+		const existing = await kv.get<AnalyticsTotals>(KV_KEYS.totals, "json");
+		if (existing) {
+			totals = existing;
+		}
+	} catch {
+		// Use defaults
+	}
+
+	// Fetch last 30 days of daily stats from analytics:daily:* keys
+	// These are populated by aggregateSessionToKV() on session expiration
 	const recentDays: DailyStats[] = [];
 	const today = new Date();
-	let totalSessions = 0;
-	let totalToolCalls = 0;
 
 	for (let i = 0; i < 30; i++) {
 		const date = new Date(today);
@@ -270,29 +283,9 @@ export async function fetchDashboardData(kv: KVNamespace): Promise<{
 		const dateStr = date.toISOString().split("T")[0];
 
 		try {
-			// Query usage:YYYY-MM-DD:* keys (same pattern as devplan_usage_stats)
-			const listResult = await kv.list({ prefix: `usage:${dateStr}:` });
-
-			let dailySessions = 0;
-			let dailyToolCalls = 0;
-
-			for (const key of listResult.keys) {
-				const count = parseInt((await kv.get(key.name)) || "0");
-				if (count > 0) {
-					dailySessions++;
-					dailyToolCalls += count;
-				}
-			}
-
-			if (dailySessions > 0) {
-				recentDays.push({
-					date: dateStr,
-					sessions: dailySessions,
-					toolCalls: dailyToolCalls,
-					countries: [], // Country data not available in usage:* keys
-				});
-				totalSessions += dailySessions;
-				totalToolCalls += dailyToolCalls;
+			const daily = await kv.get<DailyStats>(KV_KEYS.daily(dateStr), "json");
+			if (daily && daily.sessions > 0) {
+				recentDays.push(daily);
 			}
 		} catch {
 			// Skip days with errors
@@ -300,15 +293,7 @@ export async function fetchDashboardData(kv: KVNamespace): Promise<{
 	}
 	recentDays.reverse(); // Oldest first for charting
 
-	// Build totals from aggregated data
-	const totals: AnalyticsTotals = {
-		totalSessions,
-		totalToolCalls,
-		lastUpdated: new Date().toISOString(),
-	};
-
 	// Fetch country stats (list all keys with prefix and get top 10)
-	// Note: Country data may not be available if only trackUsage() is being used
 	const topCountries: CountryStats[] = [];
 	try {
 		const countryList = await kv.list({ prefix: "analytics:country:" });
