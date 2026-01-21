@@ -151,12 +151,24 @@ export class DevPlanMCP extends McpAgent {
 				metadata = parseSessionMetadata(rows[0] as Record<string, unknown>);
 			}
 		} catch {
-			// No session metadata - destroy this orphan DO
-			// Note: destroy() is not available in all runtimes, so we just let it expire
+			// SQLite query failed - this is an orphan DO, clean it up
+			try {
+				await ctx.storage.deleteAlarm();
+				await ctx.storage.deleteAll();
+			} catch {
+				// Cleanup failed
+			}
 			return;
 		}
 
 		if (!metadata) {
+			// No session data but DO exists - clean it up
+			try {
+				await ctx.storage.deleteAlarm();
+				await ctx.storage.deleteAll();
+			} catch {
+				// Cleanup failed
+			}
 			return;
 		}
 
@@ -172,15 +184,24 @@ export class DevPlanMCP extends McpAgent {
 				// Aggregation failed - continue with cleanup anyway
 			}
 
-			// Clean up SQLite data
+			// IMPORTANT: Must call deleteAll() to actually free DO storage quota
+			// Just deleting rows leaves the SQLite database structure in place
+			// See: https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/
 			try {
-				ctx.storage.sql.exec("DELETE FROM session_metadata WHERE id = 'singleton'");
+				// Delete any scheduled alarms first
+				await ctx.storage.deleteAlarm();
+				// Delete ALL storage (SQLite database + any KV data)
+				await ctx.storage.deleteAll();
 			} catch {
-				// Cleanup failed
+				// Cleanup failed - try legacy approach as fallback
+				try {
+					ctx.storage.sql.exec("DELETE FROM session_metadata WHERE id = 'singleton'");
+				} catch {
+					// Total cleanup failure
+				}
 			}
 
-			// Note: We can't call this.destroy() directly in Workers
-			// The DO will be garbage collected when no references remain
+			// DO will cease to exist once storage is empty and it shuts down
 			return;
 		}
 

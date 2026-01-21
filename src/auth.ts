@@ -76,20 +76,20 @@ export async function validateRequest(
 		};
 	}
 
-	// Increment usage counter
-	await env.DEVPLAN_KV.put(
-		usageKey,
-		JSON.stringify({
-			count: currentCount + 1,
-			resetAt: getNextMonthReset(),
-		}),
-		{ expirationTtl: 60 * 60 * 24 * 35 } // 35 days TTL
-	);
+	// Usage counter increment disabled to stay within KV free tier limits (1000 writes/day)
+	// await env.DEVPLAN_KV.put(
+	// 	usageKey,
+	// 	JSON.stringify({
+	// 		count: currentCount + 1,
+	// 		resetAt: getNextMonthReset(),
+	// 	}),
+	// 	{ expirationTtl: 60 * 60 * 24 * 35 } // 35 days TTL
+	// );
 
 	return {
 		authorized: true,
 		tier: keyData.tier,
-		remaining: limit - currentCount - 1,
+		remaining: limit - currentCount, // Not decrementing since we're not tracking
 	};
 }
 
