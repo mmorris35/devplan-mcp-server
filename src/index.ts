@@ -78,6 +78,10 @@ interface Env {
 	CLEANUP_CHECK_HOURS: string;
 	DEVPLAN_KV: KVNamespace;
 	MCP_OBJECT: DurableObjectNamespace;
+	// Cloudflare Analytics API (optional - for dashboard)
+	CF_ANALYTICS_TOKEN: string;
+	CF_ACCOUNT_ID: string;
+	CF_ZONE_ID: string;
 }
 
 export class DevPlanMCP extends McpAgent {
@@ -1840,6 +1844,12 @@ ${histogram || "| (no data) | |"}
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
+
+		// Redirect workers.dev to custom domain for consistent analytics
+		if (url.hostname.endsWith(".workers.dev")) {
+			const newUrl = new URL(url.pathname + url.search, "https://devplanmcp.store");
+			return Response.redirect(newUrl.toString(), 301);
+		}
 
 		// Health check endpoint - no auth required
 		if (url.pathname === "/" || url.pathname === "/health") {

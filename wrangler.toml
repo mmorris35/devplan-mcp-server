@@ -2,6 +2,12 @@ name = "devplan-mcp-server"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true  # Keep workers.dev subdomain active
+
+# Custom domain
+routes = [
+  { pattern = "devplanmcp.store/*", zone_name = "devplanmcp.store" }
+]
 
 # Observability - logs errors and console output
 # Free tier: 10M log messages/month, 7-day retention
@@ -42,3 +48,11 @@ deleted_classes = ["DevPlanMCP"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["DevPlanMCP"]
+
+# =============================================================================
+# Secrets (add via: wrangler secret put <NAME>)
+# =============================================================================
+# CF_ANALYTICS_TOKEN - Cloudflare API token with "Zone Analytics:Read" permission
+#                      Create at: https://dash.cloudflare.com/profile/api-tokens
+# CF_ZONE_ID         - Zone ID for devplanmcp.store
+# CF_ACCOUNT_ID      - Account ID (optional, for Workers analytics fallback)
