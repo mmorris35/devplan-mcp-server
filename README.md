@@ -53,10 +53,10 @@ flowchart LR
 ## Install
 
 ```bash
-claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse
+claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user
 ```
 
-Or add to `~/.claude/mcp.json`:
+Or add to `~/.claude.json` under the `mcpServers` key:
 
 ```json
 {
@@ -71,10 +71,10 @@ Or add to `~/.claude/mcp.json`:
 
 ### Update Existing Installation
 
-If you already have DevPlan installed, remove and re-add it:
+If you already have DevPlan installed, remove from both scopes and re-add:
 
 ```bash
-claude mcp remove devplan && claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse
+claude mcp remove devplan --scope project; claude mcp remove devplan --scope user; claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user
 ```
 
 ## Quick Start

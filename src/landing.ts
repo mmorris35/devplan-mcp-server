@@ -41,8 +41,8 @@ export function handleLanding(): Response {
     <!-- Install -->
     <section class="mb-12">
       <h2 class="text-2xl font-bold text-white mb-4">Install</h2>
-      <pre class="text-green-400"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse</code></pre>
-      <p class="text-gray-400 mt-4">Or add to <code>~/.claude/mcp.json</code>:</p>
+      <pre class="text-green-400"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user</code></pre>
+      <p class="text-gray-400 mt-4">Or add to <code>~/.claude.json</code> under the <code>mcpServers</code> key:</p>
       <pre class="mt-2"><code class="text-gray-300">{
   "mcpServers": {
     "devplan": {
@@ -52,8 +52,8 @@ export function handleLanding(): Response {
   }
 }</code></pre>
       <h3 class="text-lg font-semibold text-white mt-6 mb-2">Update Existing Installation</h3>
-      <p class="text-gray-400 mb-2">If you already have DevPlan installed, remove and re-add:</p>
-      <pre class="text-yellow-400"><code>claude mcp remove devplan && claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse</code></pre>
+      <p class="text-gray-400 mb-2">If you already have DevPlan installed, remove from both scopes and re-add:</p>
+      <pre class="text-yellow-400"><code>claude mcp remove devplan --scope project; claude mcp remove devplan --scope user; claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user</code></pre>
     </section>
 
     <!-- Quick Start -->
