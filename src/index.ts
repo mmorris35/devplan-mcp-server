@@ -15,6 +15,7 @@ import {
 	type SessionMetadata,
 } from "./session-tracking";
 import { handleDashboard, handleDashboardAPI } from "./dashboard";
+import { handleLanding } from "./landing";
 
 // Hash IP address for privacy-preserving usage tracking
 async function hashIP(ip: string): Promise<string> {
@@ -1851,8 +1852,13 @@ export default {
 			return Response.redirect(newUrl.toString(), 301);
 		}
 
-		// Health check endpoint - no auth required
-		if (url.pathname === "/" || url.pathname === "/health") {
+		// Landing page
+		if (url.pathname === "/") {
+			return handleLanding();
+		}
+
+		// Health check endpoint (JSON) - no auth required
+		if (url.pathname === "/health") {
 			return new Response(
 				JSON.stringify({
 					name: "DevPlan MCP Server",
