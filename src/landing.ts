@@ -41,13 +41,13 @@ export function handleLanding(): Response {
     <!-- Install -->
     <section class="mb-12">
       <h2 class="text-2xl font-bold text-white mb-4">Install</h2>
-      <pre class="text-green-400"><code>claude mcp add devplan --transport sse https://devplanmcp.store/sse</code></pre>
+      <pre class="text-green-400"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse</code></pre>
       <p class="text-gray-400 mt-4">Or add to <code>~/.claude/mcp.json</code>:</p>
       <pre class="mt-2"><code class="text-gray-300">{
   "mcpServers": {
     "devplan": {
       "type": "sse",
-      "url": "https://devplanmcp.store/sse"
+      "url": "https://mcp.devplanmcp.store/sse"
     }
   }
 }</code></pre>

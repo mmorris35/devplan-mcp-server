@@ -154,14 +154,18 @@ export async function fetchCloudflareAnalytics(env: CloudflareAnalyticsEnv): Pro
 
 	const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
-	// Zone Analytics query - has real unique visitors
+	// Zone Analytics query - filter to MCP subdomain only for accurate user counts
 	const query = `
-		query GetZoneAnalytics($zoneTag: string!, $startDate: Date!, $endDate: Date!) {
+		query GetZoneAnalytics($zoneTag: string!, $startDate: Date!, $endDate: Date!, $hostname: string!) {
 			viewer {
 				zones(filter: { zoneTag: $zoneTag }) {
 					httpRequests1dGroups(
 						limit: 31
-						filter: { date_geq: $startDate, date_leq: $endDate }
+						filter: {
+							date_geq: $startDate,
+							date_leq: $endDate,
+							clientRequestHTTPHost: $hostname
+						}
 						orderBy: [date_ASC]
 					) {
 						dimensions {
@@ -187,6 +191,7 @@ export async function fetchCloudflareAnalytics(env: CloudflareAnalyticsEnv): Pro
 		zoneTag: env.CF_ZONE_ID,
 		startDate: formatDate(startDate),
 		endDate: formatDate(endDate),
+		hostname: "mcp.devplanmcp.store",
 	};
 
 	try {
