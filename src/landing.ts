@@ -51,6 +51,9 @@ export function handleLanding(): Response {
     }
   }
 }</code></pre>
+      <h3 class="text-lg font-semibold text-white mt-6 mb-2">Update Existing Installation</h3>
+      <p class="text-gray-400 mb-2">If you already have DevPlan installed, remove and re-add:</p>
+      <pre class="text-yellow-400"><code>claude mcp remove devplan && claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse</code></pre>
     </section>
 
     <!-- Quick Start -->

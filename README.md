@@ -69,6 +69,14 @@ Or add to `~/.claude/mcp.json`:
 }
 ```
 
+### Update Existing Installation
+
+If you already have DevPlan installed, remove and re-add it:
+
+```bash
+claude mcp remove devplan && claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse
+```
+
 ## Quick Start
 
 ```
