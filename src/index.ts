@@ -1846,18 +1846,41 @@ export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
 
-		// Redirect workers.dev to custom domain for consistent analytics
-		if (url.hostname.endsWith(".workers.dev")) {
-			const newUrl = new URL(url.pathname + url.search, "https://devplanmcp.store");
+		// Domain detection
+		const isMcpSubdomain = url.hostname === "mcp.devplanmcp.store";
+		const isRootDomain = url.hostname === "devplanmcp.store";
+		const isWorkersDevDomain = url.hostname.endsWith(".workers.dev");
+
+		// Redirect workers.dev to MCP subdomain for MCP endpoints, root for others
+		if (isWorkersDevDomain) {
+			const isMcpPath = url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp";
+			const targetDomain = isMcpPath ? "https://mcp.devplanmcp.store" : "https://devplanmcp.store";
+			const newUrl = new URL(url.pathname + url.search, targetDomain);
 			return Response.redirect(newUrl.toString(), 301);
 		}
 
-		// Landing page
+		// MCP subdomain: redirect non-MCP paths to root domain
+		if (isMcpSubdomain) {
+			const isMcpPath = url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp" || url.pathname === "/health";
+			if (!isMcpPath) {
+				return Response.redirect(`https://devplanmcp.store${url.pathname}${url.search}`, 301);
+			}
+		}
+
+		// Root domain: redirect MCP paths to MCP subdomain
+		if (isRootDomain) {
+			const isMcpPath = url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp";
+			if (isMcpPath) {
+				return Response.redirect(`https://mcp.devplanmcp.store${url.pathname}${url.search}`, 301);
+			}
+		}
+
+		// Landing page - root domain only
 		if (url.pathname === "/") {
 			return handleLanding();
 		}
 
-		// Health check endpoint (JSON) - no auth required
+		// Health check endpoint (JSON) - both domains
 		if (url.pathname === "/health") {
 			return new Response(
 				JSON.stringify({
@@ -1874,7 +1897,7 @@ export default {
 			);
 		}
 
-		// Dashboard endpoints - no auth required (public aggregate stats only)
+		// Dashboard endpoints - root domain only (already redirected above if on mcp subdomain)
 		if (url.pathname === "/dashboard") {
 			return handleDashboard(request, env);
 		}
@@ -1882,7 +1905,7 @@ export default {
 			return handleDashboardAPI(env);
 		}
 
-		// MCP endpoints - apply auth middleware
+		// MCP endpoints - mcp subdomain only (already redirected above if on root domain)
 		if (url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp") {
 			// Block non-MCP clients to prevent DO bloat from bots/crawlers
 			const userAgent = request.headers.get("User-Agent") || "";

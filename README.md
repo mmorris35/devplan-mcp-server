@@ -53,7 +53,7 @@ flowchart LR
 ## Install
 
 ```bash
-claude mcp add devplan --transport sse https://devplanmcp.store/sse
+claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse
 ```
 
 Or add to `~/.claude/mcp.json`:
@@ -63,7 +63,7 @@ Or add to `~/.claude/mcp.json`:
   "mcpServers": {
     "devplan": {
       "type": "sse",
-      "url": "https://devplanmcp.store/sse"
+      "url": "https://mcp.devplanmcp.store/sse"
     }
   }
 }

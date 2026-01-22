@@ -4,9 +4,10 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true  # Keep workers.dev subdomain active
 
-# Custom domain
+# Custom domains
 routes = [
-  { pattern = "devplanmcp.store/*", zone_name = "devplanmcp.store" }
+  { pattern = "devplanmcp.store/*", zone_name = "devplanmcp.store" },
+  { pattern = "mcp.devplanmcp.store/*", zone_name = "devplanmcp.store" }
 ]
 
 # Observability - logs errors and console output
