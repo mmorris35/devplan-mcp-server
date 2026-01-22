@@ -1907,15 +1907,7 @@ export default {
 
 		// MCP endpoints - mcp subdomain only (already redirected above if on root domain)
 		if (url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp") {
-			// Block non-MCP clients to prevent DO bloat from bots/crawlers
-			const userAgent = request.headers.get("User-Agent") || "";
 			const accept = request.headers.get("Accept") || "";
-
-			// Block common bots and crawlers
-			const botPatterns = /bot|crawler|spider|scraper|curl|wget|python-requests|go-http|java\/|php\/|ruby/i;
-			if (botPatterns.test(userAgent)) {
-				return new Response("Forbidden: Bot access not allowed", { status: 403 });
-			}
 
 			// Validate SSE endpoint requests
 			if (url.pathname === "/sse") {
