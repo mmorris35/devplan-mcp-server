@@ -143,21 +143,25 @@ export class DevPlanMCP extends McpAgent {
 	 */
 	async checkExpiration(): Promise<void> {
 		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
+		const doId = ctx.id.toString().slice(0, 8);
 
 		// AGGRESSIVE CLEANUP: Always delete everything, never reschedule
 		// This stops the alarm feedback loop that was exceeding free tier limits
+		console.log(`[DO:${doId}] Zombie cleanup triggered - deleting all storage`);
 		try {
 			await ctx.storage.deleteAlarm();
 			await ctx.storage.deleteAll();
-		} catch {
+			console.log(`[DO:${doId}] Cleanup complete - DO will cease to exist`);
+		} catch (err) {
+			console.error(`[DO:${doId}] Cleanup failed:`, err);
 			// If deleteAll fails, try to at least stop the alarm
 			try {
 				await ctx.storage.deleteAlarm();
+				console.log(`[DO:${doId}] Alarm deleted, storage cleanup failed`);
 			} catch {
-				// Nothing more we can do
+				console.error(`[DO:${doId}] Total cleanup failure`);
 			}
 		}
-		// DO will cease to exist once storage is empty and it shuts down
 	}
 
 	/**

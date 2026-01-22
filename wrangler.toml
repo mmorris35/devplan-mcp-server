@@ -3,6 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Observability - logs errors and console output
+# Free tier: 10M log messages/month, 7-day retention
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = false  # Keep OFF to avoid log spam from every request
+
 # Feature flags and configuration
 [vars]
 AUTH_ENABLED = "false"  # Set to "true" to require API keys
