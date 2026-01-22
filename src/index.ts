@@ -78,6 +78,10 @@ interface Env {
 	CLEANUP_CHECK_HOURS: string;
 	DEVPLAN_KV: KVNamespace;
 	MCP_OBJECT: DurableObjectNamespace;
+	// Cloudflare Analytics API (optional - for dashboard)
+	CF_ANALYTICS_TOKEN: string;
+	CF_ACCOUNT_ID: string;
+	CF_ZONE_ID: string;
 }
 
 export class DevPlanMCP extends McpAgent {
@@ -143,21 +147,25 @@ export class DevPlanMCP extends McpAgent {
 	 */
 	async checkExpiration(): Promise<void> {
 		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
+		const doId = ctx.id.toString().slice(0, 8);
 
 		// AGGRESSIVE CLEANUP: Always delete everything, never reschedule
 		// This stops the alarm feedback loop that was exceeding free tier limits
+		console.log(`[DO:${doId}] Zombie cleanup triggered - deleting all storage`);
 		try {
 			await ctx.storage.deleteAlarm();
 			await ctx.storage.deleteAll();
-		} catch {
+			console.log(`[DO:${doId}] Cleanup complete - DO will cease to exist`);
+		} catch (err) {
+			console.error(`[DO:${doId}] Cleanup failed:`, err);
 			// If deleteAll fails, try to at least stop the alarm
 			try {
 				await ctx.storage.deleteAlarm();
+				console.log(`[DO:${doId}] Alarm deleted, storage cleanup failed`);
 			} catch {
-				// Nothing more we can do
+				console.error(`[DO:${doId}] Total cleanup failure`);
 			}
 		}
-		// DO will cease to exist once storage is empty and it shuts down
 	}
 
 	/**
@@ -1836,6 +1844,12 @@ ${histogram || "| (no data) | |"}
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
+
+		// Redirect workers.dev to custom domain for consistent analytics
+		if (url.hostname.endsWith(".workers.dev")) {
+			const newUrl = new URL(url.pathname + url.search, "https://devplanmcp.store");
+			return Response.redirect(newUrl.toString(), 301);
+		}
 
 		// Health check endpoint - no auth required
 		if (url.pathname === "/" || url.pathname === "/health") {

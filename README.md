@@ -53,7 +53,7 @@ flowchart LR
 ## Install
 
 ```bash
-claude mcp add devplan --transport sse https://devplan-mcp-server.mike-c63.workers.dev/sse
+claude mcp add devplan --transport sse https://devplanmcp.store/sse
 ```
 
 Or add to `~/.claude/mcp.json`:
@@ -63,7 +63,7 @@ Or add to `~/.claude/mcp.json`:
   "mcpServers": {
     "devplan": {
       "type": "sse",
-      "url": "https://devplan-mcp-server.mike-c63.workers.dev/sse"
+      "url": "https://devplanmcp.store/sse"
     }
   }
 }
@@ -266,9 +266,9 @@ graph TB
 
 DevPlan includes a public dashboard for viewing aggregate usage statistics:
 
-**Dashboard URL**: [devplan-mcp-server.mike-c63.workers.dev/dashboard](https://devplan-mcp-server.mike-c63.workers.dev/dashboard)
+**Dashboard URL**: [devplanmcp.store/dashboard](https://devplanmcp.store/dashboard)
 
-**API Endpoint**: [devplan-mcp-server.mike-c63.workers.dev/dashboard/api/stats](https://devplan-mcp-server.mike-c63.workers.dev/dashboard/api/stats)
+**API Endpoint**: [devplanmcp.store/dashboard/api/stats](https://devplanmcp.store/dashboard/api/stats)
 
 The dashboard shows:
 - **Summary cards**: Total sessions, total tool calls, countries reached
