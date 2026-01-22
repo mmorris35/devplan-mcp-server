@@ -101,129 +101,72 @@ export class DevPlanMCP extends McpAgent {
 		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
 		const request = (this as unknown as { request?: Request }).request;
 
-		// Initialize SQLite schema
-		try {
-			ctx.storage.sql.exec(SESSION_METADATA_SCHEMA);
-		} catch {
-			// Schema already exists or error - continue
-		}
+		// DISABLED: Session tracking was causing excessive DO writes
+		// Each session creates SQLite tables and rows, and with the alarm
+		// rescheduling loop, this exceeded free tier limits.
+		//
+		// The MCP tools still work fine without session tracking.
+		//
+		// try {
+		// 	ctx.storage.sql.exec(SESSION_METADATA_SCHEMA);
+		// } catch {}
+		//
+		// this.sessionId = generateSessionId();
+		// const geo = request ? extractGeoFromRequest(request) : { ... };
+		// const insertSQL = createSessionMetadataSQL(this.sessionId, geo, transportType);
+		// ctx.storage.sql.exec(insertSQL);
 
-		// Generate session ID and extract geolocation
+		// Keep sessionId for logging purposes only (no storage)
 		this.sessionId = generateSessionId();
-		const geo = request ? extractGeoFromRequest(request) : {
-			countryCode: null,
-			regionCode: null,
-			continent: null,
-		};
-		const transportType = request?.url?.includes("/sse") ? "sse" : "http";
 
-		// Insert session metadata
-		try {
-			const insertSQL = createSessionMetadataSQL(this.sessionId, geo, transportType);
-			ctx.storage.sql.exec(insertSQL);
-		} catch {
-			// Insert failed - continue without tracking
-		}
-
-		// Schedule first cleanup check using the agents SDK schedule method
-		const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
-		try {
-			await this.schedule(checkHours * 60 * 60, "checkExpiration");
-		} catch {
-			// Scheduling failed - continue without cleanup
-		}
+		// DISABLED: Alarm scheduling was causing massive DO write usage
+		// Each alarm reschedule counts as a write, and with thousands of DOs
+		// this exceeded the 100k rows_written/day free tier limit
+		// See: https://developers.cloudflare.com/durable-objects/api/alarms/
+		//
+		// const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
+		// try {
+		// 	await this.schedule(checkHours * 60 * 60, "checkExpiration");
+		// } catch {
+		// 	// Scheduling failed - continue without cleanup
+		// }
 	}
 
 	/**
-	 * Scheduled callback to check if session should be expired.
-	 * Called by the agents SDK scheduler.
+	 * Scheduled callback - ALWAYS cleans up the DO to stop the alarm loop.
+	 *
+	 * Previously this would check expiration and reschedule, but that caused
+	 * a feedback loop: thousands of DOs each rescheduling hourly = 100k+ writes/day.
+	 *
+	 * Now: any alarm that fires will clean up the DO and NOT reschedule.
+	 * This stops the bleeding from existing zombie DOs.
 	 */
 	async checkExpiration(): Promise<void> {
-		const env = (this as unknown as { env: Env }).env;
 		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
 
-		// Get session metadata from SQLite
-		let metadata: SessionMetadata | null = null;
+		// AGGRESSIVE CLEANUP: Always delete everything, never reschedule
+		// This stops the alarm feedback loop that was exceeding free tier limits
 		try {
-			const result = ctx.storage.sql.exec("SELECT * FROM session_metadata WHERE id = 'singleton'");
-			const rows = [...result];
-			if (rows.length > 0) {
-				metadata = parseSessionMetadata(rows[0] as Record<string, unknown>);
-			}
+			await ctx.storage.deleteAlarm();
+			await ctx.storage.deleteAll();
 		} catch {
-			// SQLite query failed - this is an orphan DO, clean it up
+			// If deleteAll fails, try to at least stop the alarm
 			try {
 				await ctx.storage.deleteAlarm();
-				await ctx.storage.deleteAll();
 			} catch {
-				// Cleanup failed
+				// Nothing more we can do
 			}
-			return;
 		}
-
-		if (!metadata) {
-			// No session data but DO exists - clean it up
-			try {
-				await ctx.storage.deleteAlarm();
-				await ctx.storage.deleteAll();
-			} catch {
-				// Cleanup failed
-			}
-			return;
-		}
-
-		// Check expiration
-		const inactivityDays = parseInt(env.SESSION_INACTIVITY_TTL_DAYS || "7");
-		const absoluteDays = parseInt(env.SESSION_ABSOLUTE_TTL_DAYS || "30");
-
-		if (shouldExpireSession(metadata, inactivityDays, absoluteDays)) {
-			// Aggregate session data to KV before cleanup
-			try {
-				await aggregateSessionToKV(env.DEVPLAN_KV, metadata);
-			} catch {
-				// Aggregation failed - continue with cleanup anyway
-			}
-
-			// IMPORTANT: Must call deleteAll() to actually free DO storage quota
-			// Just deleting rows leaves the SQLite database structure in place
-			// See: https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/
-			try {
-				// Delete any scheduled alarms first
-				await ctx.storage.deleteAlarm();
-				// Delete ALL storage (SQLite database + any KV data)
-				await ctx.storage.deleteAll();
-			} catch {
-				// Cleanup failed - try legacy approach as fallback
-				try {
-					ctx.storage.sql.exec("DELETE FROM session_metadata WHERE id = 'singleton'");
-				} catch {
-					// Total cleanup failure
-				}
-			}
-
-			// DO will cease to exist once storage is empty and it shuts down
-			return;
-		}
-
-		// Reschedule the check
-		const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
-		try {
-			await this.schedule(checkHours * 60 * 60, "checkExpiration");
-		} catch {
-			// Rescheduling failed
-		}
+		// DO will cease to exist once storage is empty and it shuts down
 	}
 
 	/**
 	 * Update activity timestamp when tools are called.
+	 * DISABLED: This was writing to SQLite on every tool call,
+	 * contributing to rows_written limit exhaustion.
 	 */
 	private updateActivity(): void {
-		try {
-			const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
-			ctx.storage.sql.exec(updateActivitySQL());
-		} catch {
-			// Activity update failed - non-critical
-		}
+		// No-op - session tracking disabled to stay within free tier limits
 	}
 
 	async init() {
