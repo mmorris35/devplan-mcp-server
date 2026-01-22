@@ -32,3 +32,13 @@ class_name = "DevPlanMCP"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DevPlanMCP"]
+
+# NUCLEAR: Delete all existing DOs to stop zombie alarm storm
+[[migrations]]
+tag = "v2"
+deleted_classes = ["DevPlanMCP"]
+
+# Recreate class fresh after nuclear cleanup
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["DevPlanMCP"]
