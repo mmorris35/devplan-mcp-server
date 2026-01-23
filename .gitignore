@@ -20,8 +20,9 @@ server.json
 dist/
 
 # DevPlan planning artifacts
-PROJECT_BRIEF.md
-DEVELOPMENT_PLAN.md
+PROJECT_BRIEF*.md
+DEVELOPMENT_PLAN*.md
+*PLAN*.md
 CLAUDE.md
 .claude/
 
