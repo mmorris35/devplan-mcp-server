@@ -72,6 +72,7 @@ import {
 	formatRemediationPlan,
 } from "./generators";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
+import { exportWorkflow } from "./workflow-export";
 
 // Extend Env interface for our bindings
 interface Env {
@@ -1955,6 +1956,83 @@ You MUST fix all issues above before presenting this plan to the user. For each 
 						},
 					],
 					isError: true,
+				};
+			}
+		);
+
+		// Tool 22: devplan_export_workflow - Export plan as visual workflow
+		this.server.tool(
+			"devplan_export_workflow",
+			"Export a DEVELOPMENT_PLAN.md as ReactFlow-compatible JSON for visual workflow tools like Sim.ai. Returns nodes, edges, and metadata for rendering the plan as an interactive diagram.",
+			{
+				plan_content: z.string().describe("Full content of DEVELOPMENT_PLAN.md"),
+				platform: z
+					.enum(["sim", "n8n", "reactflow", "generic"])
+					.optional()
+					.describe("Target platform format (default: reactflow)"),
+				include_completed: z
+					.boolean()
+					.optional()
+					.describe("Include completed subtasks in output (default: true)"),
+				include_success_criteria: z
+					.boolean()
+					.optional()
+					.describe("Include success criteria in node data (default: false)"),
+			},
+			async ({ plan_content, platform, include_completed, include_success_criteria }) => {
+				this.updateActivity();
+
+				const result = exportWorkflow(plan_content, {
+					platform,
+					includeCompleted: include_completed,
+					includeSuccessCriteria: include_success_criteria,
+				});
+
+				if (!result.success) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `❌ Error exporting workflow: ${result.error}
+
+**Expected format**: A DEVELOPMENT_PLAN.md file with:
+- \`## Phase N: Title\` headers for phases
+- \`### Task N.M: Title\` headers for tasks
+- \`**Subtask N.M.P: Title**\` markers for subtasks
+- \`**Prerequisites**:\` sections with checkbox items
+
+Example usage:
+\`\`\`
+devplan_export_workflow({ plan_content: "..." })
+\`\`\``,
+							},
+						],
+						isError: true,
+					};
+				}
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `# Workflow Export Successful
+
+**Plan**: ${result.workflow.metadata.planName}
+**Nodes**: ${result.workflow.metadata.nodeCount}
+**Edges**: ${result.workflow.metadata.edgeCount}
+**Platform**: ${result.workflow.metadata.platform}
+
+## ReactFlow JSON
+
+\`\`\`json
+${JSON.stringify(result.workflow, null, 2)}
+\`\`\`
+
+## Usage
+
+Import this JSON into ReactFlow, Sim.ai, or any compatible visual workflow tool.`,
+						},
+					],
 				};
 			}
 		);
