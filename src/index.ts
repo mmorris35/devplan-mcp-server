@@ -692,7 +692,21 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 		// Tool 4: devplan_generate_plan
 		this.server.tool(
 			"devplan_generate_plan",
-			"Generate a DEVELOPMENT_PLAN.md scaffold. Use this as a starting point, then enhance it to match the example at https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md",
+			`Generate a DEVELOPMENT_PLAN.md scaffold. IMPORTANT: This outputs a SCAFFOLD, not a finished plan.
+
+REQUIRED WORKFLOW (you MUST follow this):
+1. Call this tool to get the scaffold
+2. ENHANCE the scaffold by:
+   - Reading the project's existing codebase
+   - Writing COMPLETE file contents for each subtask (no "Add to" instructions)
+   - Including ALL imports in every code block
+   - Making test fixtures self-contained in each test file
+   - Providing exact line context for any file modifications
+3. Call devplan_validate_haiku_executable to verify the plan
+4. If validation fails, fix the issues and re-validate
+5. ONLY present the plan to the user after validation passes
+
+The user should NEVER see the raw scaffold - only the enhanced, validated plan.`,
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
@@ -782,7 +796,20 @@ Key things to verify/add:
   - [ ] Delete branch: \`git branch -d feature/X-Y-name\`
   \`\`\`${lessonsNote}
 
-NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md`,
+---
+
+## 🔴 VALIDATION REQUIRED
+
+Before presenting this plan to the user, you MUST:
+
+1. **Enhance** this scaffold with complete, working code for each subtask
+2. **Validate** by calling \`devplan_validate_haiku_executable\` with the enhanced plan
+3. **Fix** any issues reported by validation
+4. **Re-validate** until the plan passes
+
+Do NOT show this scaffold to the user. Show only the validated plan.
+
+NEXT STEP: Enhance this plan, then call devplan_validate_haiku_executable to verify it.`,
 						},
 					],
 				};
