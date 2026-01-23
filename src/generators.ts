@@ -3481,11 +3481,12 @@ export function validateHaikuExecutable(planContent: string): HaikuValidationRes
 			if (lineCount < 5) continue;
 
 			// Check for usage of external types/functions without imports
-			const usesDescribe = /\b(describe|it|expect|beforeEach|afterEach)\b/.test(code);
+			// Look for actual function calls (with parenthesis) to avoid matching "it" in prose like "it's a rock"
+			const usesTestFunctions = /\b(describe|it|expect|beforeEach|afterEach)\s*\(/.test(code);
 			const usesZod = /\bz\.\b/.test(code);
 
 			// If code uses testing functions but no vitest import
-			if (usesDescribe && !code.includes('from "vitest"') && !code.includes("from 'vitest'")) {
+			if (usesTestFunctions && !code.includes('from "vitest"') && !code.includes("from 'vitest'")) {
 				errors.push({
 					subtaskId,
 					type: "missing_imports",
