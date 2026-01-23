@@ -12,6 +12,8 @@ import type {
 	WorkflowNode,
 	WorkflowNodeData,
 	WorkflowEdge,
+	WorkflowExport,
+	WorkflowMetadata,
 	ExportOptions,
 } from "./workflow-types";
 
@@ -82,7 +84,7 @@ function parsePhases(content: string, warnings: string[]): ParsedPhase[] {
 	const phases: ParsedPhase[] = [];
 
 	// Match phase sections: ## Phase N: Title
-	const phaseRegex = /##\s+Phase\s+(\d+):\s*(.+?)(?=\n)/g;
+	const phaseRegex = /^##\s+Phase\s+(\d+):\s*(.+?)(?=\n)/gm;
 	const phaseMatches = [...content.matchAll(phaseRegex)];
 
 	for (let i = 0; i < phaseMatches.length; i++) {
@@ -125,7 +127,7 @@ function parseTasks(phaseContent: string, phaseNumber: number, warnings: string[
 	const tasks: ParsedTask[] = [];
 
 	// Match task sections: ### Task N.M: Title
-	const taskRegex = /###\s+Task\s+(\d+\.\d+):\s*(.+?)(?=\n)/g;
+	const taskRegex = /^###\s+Task\s+(\d+\.\d+):\s*(.+?)(?=\n)/gm;
 	const taskMatches = [...phaseContent.matchAll(taskRegex)];
 
 	for (let i = 0; i < taskMatches.length; i++) {
@@ -455,4 +457,153 @@ export function generateEdges(plan: ParsedPlan, options: ExportOptions = {}): Wo
 	}
 
 	return edges;
+}
+
+// ============================================
+// Layout Engine
+// ============================================
+
+/**
+ * Layout configuration for node positioning.
+ */
+interface LayoutConfig {
+	nodeWidth: number;
+	nodeHeight: number;
+	horizontalGap: number;
+	verticalGap: number;
+}
+
+const DEFAULT_LAYOUT: LayoutConfig = {
+	nodeWidth: 250,
+	nodeHeight: 60,
+	horizontalGap: 50,
+	verticalGap: 40,
+};
+
+/**
+ * Apply hierarchical layout to workflow nodes.
+ * Uses a simple top-down layout algorithm.
+ *
+ * @param nodes - Nodes to position
+ * @param edges - Edges (unused, for future dependency-based layout)
+ * @param config - Layout configuration
+ * @returns Nodes with updated positions
+ */
+export function applyLayout(
+	nodes: WorkflowNode[],
+	edges: WorkflowEdge[],
+	config: Partial<LayoutConfig> = {}
+): WorkflowNode[] {
+	const layout = { ...DEFAULT_LAYOUT, ...config };
+	const positioned = [...nodes];
+
+	// Group nodes by type
+	const phases = positioned.filter((n) => n.type === "phase");
+	const tasks = positioned.filter((n) => n.type === "task");
+	const subtasks = positioned.filter((n) => n.type === "subtask");
+
+	// Calculate positions based on hierarchy
+	let currentY = 0;
+
+	for (const phase of phases) {
+		// Position phase node
+		phase.position = { x: 0, y: currentY };
+
+		// Find tasks in this phase
+		const phaseTasks = tasks.filter((t) => t.parentNode === phase.id);
+		let taskY = currentY + layout.nodeHeight + layout.verticalGap;
+
+		for (const task of phaseTasks) {
+			// Position task node (indented)
+			task.position = { x: layout.horizontalGap, y: taskY };
+
+			// Find subtasks in this task
+			const taskSubtasks = subtasks.filter((s) => s.parentNode === task.id);
+			let subtaskY = taskY + layout.nodeHeight + layout.verticalGap;
+
+			for (const subtask of taskSubtasks) {
+				// Position subtask node (further indented)
+				subtask.position = { x: layout.horizontalGap * 2, y: subtaskY };
+				subtaskY += layout.nodeHeight + layout.verticalGap;
+			}
+
+			// Update taskY based on subtask count
+			const subtaskHeight = taskSubtasks.length * (layout.nodeHeight + layout.verticalGap);
+			taskY += Math.max(layout.nodeHeight + layout.verticalGap, subtaskHeight);
+		}
+
+		// Update currentY based on phase content
+		const phaseHeight = phaseTasks.reduce((acc, t) => {
+			const ts = subtasks.filter((s) => s.parentNode === t.id);
+			return (
+				acc +
+				Math.max(
+					layout.nodeHeight + layout.verticalGap,
+					ts.length * (layout.nodeHeight + layout.verticalGap)
+				)
+			);
+		}, 0);
+
+		currentY += Math.max(
+			layout.nodeHeight + layout.verticalGap * 2,
+			phaseHeight + layout.nodeHeight + layout.verticalGap * 2
+		);
+	}
+
+	return positioned;
+}
+
+// ============================================
+// Main Export Function
+// ============================================
+
+/**
+ * Export result type.
+ */
+export type ExportResult =
+	| { success: true; workflow: WorkflowExport }
+	| { success: false; error: string };
+
+/**
+ * Main export function - combines parsing, node/edge generation, and layout.
+ *
+ * @param planContent - Raw DEVELOPMENT_PLAN.md content
+ * @param options - Export options
+ * @returns Complete workflow export or error
+ */
+export function exportWorkflow(planContent: string, options: ExportOptions = {}): ExportResult {
+	// Parse the plan
+	const parseResult = parsePlanToStructure(planContent);
+	if (!parseResult.success || !parseResult.plan) {
+		return { success: false, error: parseResult.error || "Unknown parse error" };
+	}
+
+	const plan = parseResult.plan;
+
+	// Generate nodes and edges
+	const nodes = generateNodes(plan, options);
+	const edges = generateEdges(plan, options);
+
+	// Apply layout
+	const layoutedNodes = applyLayout(nodes, edges);
+
+	// Build metadata
+	const metadata: WorkflowMetadata = {
+		planName: plan.projectName,
+		exportedAt: new Date().toISOString(),
+		version: "1.0.0",
+		platform: options.platform || "reactflow",
+		nodeCount: layoutedNodes.length,
+		edgeCount: edges.length,
+	};
+
+	return {
+		success: true,
+		workflow: {
+			nodes: layoutedNodes,
+			edges,
+			viewport: { x: 0, y: 0, zoom: 1 },
+			metadata,
+		},
+	};
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parsePlanToStructure, generateNodes, generateEdges } from "../workflow-export";
+import {
+	parsePlanToStructure,
+	generateNodes,
+	generateEdges,
+	applyLayout,
+	exportWorkflow,
+} from "../workflow-export";
 import type { ParsedPlan } from "../workflow-types";
 
 // ============================================
@@ -16,11 +22,11 @@ const SAMPLE_PLAN = `# Test Project - Development Plan
 
 ## Progress Tracking
 
-Phase 0: Foundation
+### Phase 0: Foundation
 - [x] 0.1.1: Create types
 - [ ] 0.1.2: Create parser
 
-Phase 1: Implementation
+### Phase 1: Implementation
 - [ ] 1.1.1: Core feature
 
 **Current**: Phase 0
@@ -353,6 +359,139 @@ describe("workflow-export", () => {
 
 			const edge111 = edges.find((e) => e.id === "edge-0.1.2-to-1.1.1");
 			expect(edge111?.animated).toBe(true);
+		});
+	});
+
+	// ============================================
+	// Layout Tests
+	// ============================================
+
+	describe("applyLayout", () => {
+		it("should position phase nodes at x=0", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+			const positioned = applyLayout(nodes, edges);
+
+			const phases = positioned.filter((n) => n.type === "phase");
+			for (const phase of phases) {
+				expect(phase.position.x).toBe(0);
+			}
+		});
+
+		it("should indent task nodes", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+			const positioned = applyLayout(nodes, edges);
+
+			const tasks = positioned.filter((n) => n.type === "task");
+			for (const task of tasks) {
+				expect(task.position.x).toBeGreaterThan(0);
+			}
+		});
+
+		it("should further indent subtask nodes", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+			const positioned = applyLayout(nodes, edges);
+
+			const tasks = positioned.filter((n) => n.type === "task");
+			const subtasks = positioned.filter((n) => n.type === "subtask");
+
+			const taskX = tasks[0].position.x;
+			for (const subtask of subtasks) {
+				expect(subtask.position.x).toBeGreaterThan(taskX);
+			}
+		});
+
+		it("should position nodes vertically in order", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+			const positioned = applyLayout(nodes, edges);
+
+			const phase0 = positioned.find((n) => n.id === "phase-0");
+			const phase1 = positioned.find((n) => n.id === "phase-1");
+
+			expect(phase1!.position.y).toBeGreaterThan(phase0!.position.y);
+		});
+	});
+
+	// ============================================
+	// Export Workflow Tests
+	// ============================================
+
+	describe("exportWorkflow", () => {
+		it("should export valid workflow from plan content", () => {
+			const result = exportWorkflow(SAMPLE_PLAN);
+
+			expect(result.success).toBe(true);
+			if (result.success) {
+				expect(result.workflow.nodes.length).toBeGreaterThan(0);
+				expect(result.workflow.edges.length).toBeGreaterThan(0);
+				expect(result.workflow.metadata.planName).toBe("Test Project");
+			}
+		});
+
+		it("should include metadata", () => {
+			const result = exportWorkflow(SAMPLE_PLAN);
+
+			if (result.success) {
+				expect(result.workflow.metadata.version).toBe("1.0.0");
+				expect(result.workflow.metadata.platform).toBe("reactflow");
+				expect(result.workflow.metadata.nodeCount).toBeGreaterThan(0);
+				expect(result.workflow.metadata.edgeCount).toBeGreaterThan(0);
+				expect(result.workflow.metadata.exportedAt).toBeDefined();
+			}
+		});
+
+		it("should return error for invalid plan", () => {
+			const result = exportWorkflow("invalid content");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No phases found");
+			}
+		});
+
+		it("should respect platform option", () => {
+			const result = exportWorkflow(SAMPLE_PLAN, { platform: "sim" });
+
+			if (result.success) {
+				expect(result.workflow.metadata.platform).toBe("sim");
+			}
+		});
+
+		it("should include viewport settings", () => {
+			const result = exportWorkflow(SAMPLE_PLAN);
+
+			if (result.success) {
+				expect(result.workflow.viewport).toBeDefined();
+				expect(result.workflow.viewport?.zoom).toBe(1);
+			}
+		});
+
+		it("should produce valid JSON", () => {
+			const result = exportWorkflow(SAMPLE_PLAN);
+
+			if (result.success) {
+				const json = JSON.stringify(result.workflow);
+				const parsed = JSON.parse(json);
+
+				expect(parsed.nodes).toHaveLength(result.workflow.nodes.length);
+				expect(parsed.edges).toHaveLength(result.workflow.edges.length);
+			}
+		});
+
+		it("should position nodes with valid coordinates", () => {
+			const result = exportWorkflow(SAMPLE_PLAN);
+
+			if (result.success) {
+				for (const node of result.workflow.nodes) {
+					expect(typeof node.position.x).toBe("number");
+					expect(typeof node.position.y).toBe("number");
+					expect(node.position.x).toBeGreaterThanOrEqual(0);
+					expect(node.position.y).toBeGreaterThanOrEqual(0);
+				}
+			}
 		});
 	});
 });
