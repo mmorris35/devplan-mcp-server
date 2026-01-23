@@ -84,7 +84,7 @@ function parsePhases(content: string, warnings: string[]): ParsedPhase[] {
 	const phases: ParsedPhase[] = [];
 
 	// Match phase sections: ## Phase N: Title
-	const phaseRegex = /##\s+Phase\s+(\d+):\s*(.+?)(?=\n)/g;
+	const phaseRegex = /^##\s+Phase\s+(\d+):\s*(.+?)(?=\n)/gm;
 	const phaseMatches = [...content.matchAll(phaseRegex)];
 
 	for (let i = 0; i < phaseMatches.length; i++) {
@@ -127,7 +127,7 @@ function parseTasks(phaseContent: string, phaseNumber: number, warnings: string[
 	const tasks: ParsedTask[] = [];
 
 	// Match task sections: ### Task N.M: Title
-	const taskRegex = /###\s+Task\s+(\d+\.\d+):\s*(.+?)(?=\n)/g;
+	const taskRegex = /^###\s+Task\s+(\d+\.\d+):\s*(.+?)(?=\n)/gm;
 	const taskMatches = [...phaseContent.matchAll(taskRegex)];
 
 	for (let i = 0; i < taskMatches.length; i++) {
