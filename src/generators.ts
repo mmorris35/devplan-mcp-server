@@ -3369,6 +3369,255 @@ export function validatePlan(content: string, strict: boolean = false): {
 	};
 }
 
+// ============================================
+// Haiku-Executable Validation
+// ============================================
+
+/**
+ * Result of Haiku-executable validation.
+ */
+export interface HaikuValidationResult {
+	/** Whether the plan is Haiku-executable */
+	isHaikuExecutable: boolean;
+	/** Critical issues that MUST be fixed */
+	errors: HaikuValidationError[];
+	/** Suggestions for improvement */
+	warnings: string[];
+	/** Summary statistics */
+	stats: {
+		subtasksChecked: number;
+		codeBlocksChecked: number;
+		issuesFound: number;
+	};
+}
+
+/**
+ * Detailed error for Haiku validation failures.
+ */
+export interface HaikuValidationError {
+	/** Subtask ID where the issue was found (e.g., "1.2.3") */
+	subtaskId: string;
+	/** Type of issue */
+	type: "add_to_instruction" | "missing_imports" | "cross_subtask_reference" | "ambiguous_modification" | "incomplete_code";
+	/** Human-readable description */
+	message: string;
+	/** Specific fix instruction for Claude */
+	fix: string;
+}
+
+/**
+ * Validate that a development plan is Haiku-executable.
+ *
+ * A Haiku-executable plan has:
+ * - Complete file contents (no "Add to" instructions without full content)
+ * - All imports present in code blocks
+ * - Self-contained test fixtures (no cross-subtask references)
+ * - Explicit line context for file modifications
+ *
+ * @param planContent - Full content of DEVELOPMENT_PLAN.md
+ * @returns Validation result with errors and suggestions
+ */
+export function validateHaikuExecutable(planContent: string): HaikuValidationResult {
+	const errors: HaikuValidationError[] = [];
+	const warnings: string[] = [];
+	let subtasksChecked = 0;
+	let codeBlocksChecked = 0;
+
+	// Extract all subtask sections
+	const subtaskPattern = /\*\*Subtask (\d+\.\d+\.\d+)[^*]*\*\*/g;
+	const subtaskMatches = [...planContent.matchAll(subtaskPattern)];
+	const subtaskIds = subtaskMatches.map(m => m[1]);
+
+	// Process each subtask section
+	for (let i = 0; i < subtaskMatches.length; i++) {
+		const subtaskId = subtaskMatches[i][1];
+		const startIndex = subtaskMatches[i].index!;
+		const endIndex = subtaskMatches[i + 1]?.index ?? planContent.length;
+		const subtaskContent = planContent.slice(startIndex, endIndex);
+
+		subtasksChecked++;
+
+		// Check 1: "Add to" instructions without complete file content
+		const addToPatterns = [
+			/Add to `([^`]+)`/gi,
+			/Add the following.*to `([^`]+)`/gi,
+			/Append to `([^`]+)`/gi,
+			/Update `([^`]+)` by adding/gi,
+			/Modify `([^`]+)` to add/gi,
+		];
+
+		for (const pattern of addToPatterns) {
+			const matches = [...subtaskContent.matchAll(pattern)];
+			for (const match of matches) {
+				const fileName = match[1];
+				// Check if there's a "Replace entire content" or "Create file" instruction nearby
+				const hasCompleteContent =
+					subtaskContent.includes(`Replace the entire content of \`${fileName}\``) ||
+					subtaskContent.includes(`Create file \`${fileName}\``) ||
+					subtaskContent.includes(`with this exact content`) ||
+					subtaskContent.includes(`Replace entire content`);
+
+				if (!hasCompleteContent) {
+					errors.push({
+						subtaskId,
+						type: "add_to_instruction",
+						message: `Subtask ${subtaskId} uses "Add to ${fileName}" without showing complete file content`,
+						fix: `Replace "Add to ${fileName}" with "Replace the entire content of ${fileName} with:" and show the COMPLETE file, not just the additions.`,
+					});
+				}
+			}
+		}
+
+		// Check 2: Code blocks without imports (for TypeScript/JavaScript)
+		const codeBlockPattern = /```(?:typescript|javascript|ts|js)\n([\s\S]*?)```/g;
+		const codeBlocks = [...subtaskContent.matchAll(codeBlockPattern)];
+
+		for (const block of codeBlocks) {
+			codeBlocksChecked++;
+			const code = block[1];
+
+			// Skip if it's a small snippet (less than 5 lines)
+			const lineCount = code.split('\n').length;
+			if (lineCount < 5) continue;
+
+			// Check for usage of external types/functions without imports
+			const usesDescribe = /\b(describe|it|expect|beforeEach|afterEach)\b/.test(code);
+			const usesZod = /\bz\.\b/.test(code);
+
+			// If code uses testing functions but no vitest import
+			if (usesDescribe && !code.includes('from "vitest"') && !code.includes("from 'vitest'")) {
+				errors.push({
+					subtaskId,
+					type: "missing_imports",
+					message: `Subtask ${subtaskId} has test code without vitest imports`,
+					fix: `Add 'import { describe, it, expect } from "vitest";' at the top of the code block.`,
+				});
+			}
+
+			// If code uses zod but no zod import
+			if (usesZod && !code.includes('from "zod"') && !code.includes("from 'zod'")) {
+				errors.push({
+					subtaskId,
+					type: "missing_imports",
+					message: `Subtask ${subtaskId} uses zod without importing it`,
+					fix: `Add 'import { z } from "zod";' at the top of the code block.`,
+				});
+			}
+
+			// Check for local module imports (functions used but not imported)
+			const functionCalls = code.match(/\b([a-z][a-zA-Z0-9]*)\s*\(/g) || [];
+			const definedFunctions = code.match(/function\s+([a-zA-Z0-9]+)/g) || [];
+			const definedFunctionNames = definedFunctions.map(f => f.replace('function ', ''));
+			const hasImports = /^import\s+/.test(code.trim());
+
+			// If there are function calls that aren't defined in this block and no imports
+			if (functionCalls.length > 5 && !hasImports && definedFunctionNames.length < functionCalls.length / 2) {
+				warnings.push(`Subtask ${subtaskId} may have code that uses functions without importing them. Verify all imports are present.`);
+			}
+		}
+
+		// Check 3: Cross-subtask fixture references in tests
+		const testFixturePatterns = [
+			/SAMPLE_PLAN/g,
+			/SAMPLE_PARSED_PLAN/g,
+			/TEST_FIXTURE/g,
+			/MOCK_DATA/g,
+		];
+
+		for (const pattern of testFixturePatterns) {
+			const matches = subtaskContent.match(pattern);
+			if (matches && matches.length > 0) {
+				// Check if the fixture is defined in this subtask
+				const fixtureName = pattern.source.replace(/\\b/g, '');
+				const isDefinedHere =
+					subtaskContent.includes(`const ${fixtureName} =`) ||
+					subtaskContent.includes(`let ${fixtureName} =`);
+
+				if (!isDefinedHere) {
+					// Check if it's referenced from a previous subtask
+					const referencesOtherSubtask = subtaskIds.some(id =>
+						id !== subtaskId && subtaskContent.includes(`defined in ${id}`) || subtaskContent.includes(`from subtask ${id}`)
+					);
+
+					if (referencesOtherSubtask) {
+						errors.push({
+							subtaskId,
+							type: "cross_subtask_reference",
+							message: `Subtask ${subtaskId} references ${fixtureName} from another subtask`,
+							fix: `Include the complete ${fixtureName} definition in this subtask's code block. Test files must be self-contained.`,
+						});
+					}
+				}
+			}
+		}
+
+		// Check 4: Ambiguous file modification instructions
+		const ambiguousPatterns = [
+			/add (?:this |the following )?(?:code |function |method )?(?:to|in|inside) (?:the )?(?:init|constructor|class|method)\s*\(\)/gi,
+			/add (?:after|before) (?:the |line )?\d+/gi,
+			/insert (?:at|near|around) line \d+/gi,
+		];
+
+		for (const pattern of ambiguousPatterns) {
+			const matches = subtaskContent.match(pattern);
+			if (matches) {
+				for (const match of matches) {
+					errors.push({
+						subtaskId,
+						type: "ambiguous_modification",
+						message: `Subtask ${subtaskId} has ambiguous modification instruction: "${match}"`,
+						fix: `Either show the complete file content, or provide exact context like "Add after the line containing 'devplan_usage_stats' tool definition (around line 1841):" with surrounding code for context.`,
+					});
+				}
+			}
+		}
+
+		// Check 5: Incomplete code blocks (placeholders)
+		const placeholderPatterns = [
+			/\/\/ \.\.\./g,
+			/\/\/ TODO/gi,
+			/\/\/ implement/gi,
+			/\.\.\. existing code \.\.\./gi,
+			/\(rest of (?:file|code|function)\)/gi,
+			/\[your code here\]/gi,
+		];
+
+		for (const pattern of placeholderPatterns) {
+			const matches = subtaskContent.match(pattern);
+			if (matches) {
+				for (const match of matches) {
+					errors.push({
+						subtaskId,
+						type: "incomplete_code",
+						message: `Subtask ${subtaskId} contains placeholder code: "${match}"`,
+						fix: `Replace placeholder with complete, working code. Haiku cannot fill in placeholders.`,
+					});
+				}
+			}
+		}
+	}
+
+	// Overall warnings
+	if (subtasksChecked === 0) {
+		warnings.push("No subtasks found in plan. Expected '**Subtask X.Y.Z:**' format.");
+	}
+
+	if (codeBlocksChecked === 0) {
+		warnings.push("No TypeScript/JavaScript code blocks found. If this is expected, ignore this warning.");
+	}
+
+	return {
+		isHaikuExecutable: errors.length === 0,
+		errors,
+		warnings,
+		stats: {
+			subtasksChecked,
+			codeBlocksChecked,
+			issuesFound: errors.length,
+		},
+	};
+}
+
 /**
  * Generate a progress summary from a development plan.
  * Returns statistics and the next actionable subtask.

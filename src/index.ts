@@ -60,6 +60,9 @@ import {
 	parseBrief,
 	updateProgress,
 	validatePlan,
+	validateHaikuExecutable,
+	type HaikuValidationResult,
+	type HaikuValidationError,
 	findRelevantLessons,
 	// Issue-to-task system
 	parseIssueContent,
@@ -689,7 +692,21 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 		// Tool 4: devplan_generate_plan
 		this.server.tool(
 			"devplan_generate_plan",
-			"Generate a DEVELOPMENT_PLAN.md scaffold. Use this as a starting point, then enhance it to match the example at https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md",
+			`Generate a DEVELOPMENT_PLAN.md scaffold. IMPORTANT: This outputs a SCAFFOLD, not a finished plan.
+
+REQUIRED WORKFLOW (you MUST follow this):
+1. Call this tool to get the scaffold
+2. ENHANCE the scaffold by:
+   - Reading the project's existing codebase
+   - Writing COMPLETE file contents for each subtask (no "Add to" instructions)
+   - Including ALL imports in every code block
+   - Making test fixtures self-contained in each test file
+   - Providing exact line context for any file modifications
+3. Call devplan_validate_haiku_executable to verify the plan
+4. If validation fails, fix the issues and re-validate
+5. ONLY present the plan to the user after validation passes
+
+The user should NEVER see the raw scaffold - only the enhanced, validated plan.`,
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
@@ -779,7 +796,20 @@ Key things to verify/add:
   - [ ] Delete branch: \`git branch -d feature/X-Y-name\`
   \`\`\`${lessonsNote}
 
-NEXT STEP: Create CLAUDE.md following https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md`,
+---
+
+## 🔴 VALIDATION REQUIRED
+
+Before presenting this plan to the user, you MUST:
+
+1. **Enhance** this scaffold with complete, working code for each subtask
+2. **Validate** by calling \`devplan_validate_haiku_executable\` with the enhanced plan
+3. **Fix** any issues reported by validation
+4. **Re-validate** until the plan passes
+
+Do NOT show this scaffold to the user. Show only the validated plan.
+
+NEXT STEP: Enhance this plan, then call devplan_validate_haiku_executable to verify it.`,
 						},
 					],
 				};
@@ -1836,6 +1866,95 @@ ${histogram || "| (no data) | |"}
 *Note: Users are identified by hashed IP addresses for privacy. Each unique IP per day counts as one "user-day".*`,
 						},
 					],
+				};
+			}
+		);
+
+		// Tool 21: devplan_validate_haiku_executable - Check if plan is Haiku-executable
+		this.server.tool(
+			"devplan_validate_haiku_executable",
+			"Validate that a DEVELOPMENT_PLAN.md is Haiku-executable (can be implemented by Claude Haiku without interpretation). Returns specific errors with fix instructions. IMPORTANT: After calling devplan_generate_plan, you MUST enhance the scaffold with complete code, then call this tool to validate before presenting to the user.",
+			{
+				plan_content: z.string().describe("Full content of DEVELOPMENT_PLAN.md to validate"),
+			},
+			async ({ plan_content }) => {
+				this.updateActivity();
+
+				const result = validateHaikuExecutable(plan_content);
+
+				if (result.isHaikuExecutable) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `# ✅ Plan is Haiku-Executable
+
+## Summary
+- **Status**: PASS
+- **Subtasks Checked**: ${result.stats.subtasksChecked}
+- **Code Blocks Checked**: ${result.stats.codeBlocksChecked}
+- **Issues Found**: 0
+
+${result.warnings.length > 0 ? `## Warnings (non-blocking)\n${result.warnings.map(w => `- ${w}`).join('\n')}` : ''}
+
+The plan can be executed by Claude Haiku without interpretation. Each subtask has complete, copy-pasteable code.`,
+							},
+						],
+					};
+				}
+
+				// Format errors for Claude to fix
+				const errorsBySubtask = new Map<string, HaikuValidationError[]>();
+				for (const error of result.errors) {
+					const existing = errorsBySubtask.get(error.subtaskId) || [];
+					existing.push(error);
+					errorsBySubtask.set(error.subtaskId, existing);
+				}
+
+				let errorReport = "";
+				for (const [subtaskId, errors] of errorsBySubtask) {
+					errorReport += `\n### Subtask ${subtaskId}\n\n`;
+					for (const error of errors) {
+						errorReport += `**Issue**: ${error.message}\n`;
+						errorReport += `**Type**: \`${error.type}\`\n`;
+						errorReport += `**Fix**: ${error.fix}\n\n`;
+					}
+				}
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `# ❌ Plan is NOT Haiku-Executable
+
+## Summary
+- **Status**: FAIL
+- **Subtasks Checked**: ${result.stats.subtasksChecked}
+- **Code Blocks Checked**: ${result.stats.codeBlocksChecked}
+- **Issues Found**: ${result.stats.issuesFound}
+
+## Issues to Fix
+${errorReport}
+${result.warnings.length > 0 ? `## Warnings\n${result.warnings.map(w => `- ${w}`).join('\n')}` : ''}
+
+## Required Action
+
+You MUST fix all issues above before presenting this plan to the user. For each issue:
+
+1. Read the **Fix** instruction
+2. Update the plan content accordingly
+3. Re-run this validation tool
+4. Repeat until validation passes
+
+**Common Fixes**:
+- \`add_to_instruction\`: Show complete file contents, not just additions
+- \`missing_imports\`: Add all necessary import statements to code blocks
+- \`cross_subtask_reference\`: Include fixture definitions in each test file
+- \`ambiguous_modification\`: Provide exact line context or complete file
+- \`incomplete_code\`: Replace placeholders with working code`,
+						},
+					],
+					isError: true,
 				};
 			}
 		);
