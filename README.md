@@ -9,45 +9,16 @@
 
 > **The Problem**: AI coding assistants often lose context, skip steps, or produce inconsistent code across sessions.
 >
-> **The Solution**: DevPlan creates detailed, Haiku-executable development plans with built-in verification, lessons learned, and issue remediation workflows.
-
-```mermaid
-flowchart LR
-    subgraph Planning["📋 Planning"]
-        A[Interview] --> B[Brief]
-        B --> C[Plan]
-    end
-
-    subgraph Execution["⚡ Execution"]
-        C --> D[Execute]
-        D --> E[Verify]
-    end
-
-    subgraph Learning["🧠 Learning"]
-        E -->|issues| F[Lessons]
-        F -->|improve| C
-    end
-
-    subgraph Remediation["🔧 Remediation"]
-        G[GitHub Issue] --> H[Parse]
-        H --> I[Task]
-        I --> D
-    end
-
-    style A fill:#e1f5fe,stroke:#0288d1
-    style F fill:#fff3e0,stroke:#f57c00
-    style G fill:#fce4ec,stroke:#c2185b
-```
+> **The Solution**: DevPlan creates detailed, Haiku-executable development plans with built-in validation, lessons learned, and issue remediation workflows.
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Inline Methodology** | All guidance is embedded — no external fetches needed |
-| **Haiku-Executable Plans** | Plans so detailed that Claude Haiku can execute them |
+| **Haiku-Executable Plans** | Plans so detailed that Claude Haiku can execute them mechanically |
+| **Built-in Validation** | Validates plans are complete before execution begins |
 | **Lessons Learned** | Captures issues from verification and injects them into future plans |
 | **Issue Remediation** | Converts GitHub issues directly into remediation tasks |
-| **Tech Conflict Detection** | Warns about incompatible technology choices |
 | **Executor & Verifier Agents** | Auto-generates specialized agents for your project |
 
 ## Install
@@ -83,49 +54,74 @@ claude mcp remove devplan --scope project; claude mcp remove devplan --scope use
 You: "Use devplan_start to help me build a CLI tool for managing dotfiles"
 ```
 
-That's it. DevPlan will guide Claude through the entire process:
+That's it. DevPlan will guide Claude through the entire process.
+
+## The DevPlan Workflow
+
+DevPlan uses a **scaffold → enhance → validate** workflow that ensures every plan is Haiku-executable before implementation begins.
 
 ```mermaid
-sequenceDiagram
-    participant You
-    participant Claude as Claude Code
-    participant MCP as DevPlan MCP
-    participant KV as Lessons KV
-
-    rect rgb(240, 248, 255)
-        Note over You,MCP: 📋 Planning Phase
-        You->>Claude: "build me a CLI tool"
-        Claude->>MCP: devplan_start()
-        MCP-->>Claude: inline methodology guidance
-        Claude->>You: Interview questions (one at a time)
-        You-->>Claude: Answers
-        Claude->>MCP: devplan_create_brief()
-        MCP-->>Claude: PROJECT_BRIEF.md
-        Claude->>MCP: devplan_generate_plan()
-        MCP->>KV: fetch lessons learned
-        KV-->>MCP: past lessons
-        MCP-->>Claude: DEVELOPMENT_PLAN.md + lessons
-        Claude->>MCP: devplan_generate_executor()
-        Claude->>MCP: devplan_generate_verifier()
+flowchart LR
+    subgraph Planning["📋 Planning"]
+        A[Interview] --> B[Brief]
+        B --> C[Generate Scaffold]
     end
 
-    rect rgb(255, 248, 240)
-        Note over You,Claude: ⚡ Execution Phase
-        loop Each Subtask
-            Claude->>Claude: Execute with Haiku agent
-            Claude->>Claude: Verify with Sonnet agent
-            Claude->>MCP: devplan_update_progress()
-        end
+    subgraph Enhancement["✨ Enhancement"]
+        C --> D[Enhance with Code]
+        D --> E{Validate}
+        E -->|Fail| D
+        E -->|Pass| F[Ready]
     end
 
-    rect rgb(240, 255, 240)
-        Note over You,KV: 🧠 Learning Phase
-        Claude->>MCP: devplan_extract_lessons_from_report()
-        Claude->>MCP: devplan_add_lesson()
-        MCP->>KV: store for future projects
+    subgraph Execution["⚡ Execution"]
+        F --> G[Haiku Executes]
+        G --> H[Sonnet Verifies]
     end
 
-    Claude-->>You: ✅ Project complete!
+    subgraph Learning["🧠 Learning"]
+        H -->|issues| I[Capture Lessons]
+        I -->|improve| C
+    end
+
+    style E fill:#fff3e0,stroke:#f57c00
+    style F fill:#c8e6c9,stroke:#2e7d32
+    style I fill:#e3f2fd,stroke:#1565c0
+```
+
+### How It Works
+
+1. **Interview** → DevPlan asks questions to understand your project
+2. **Brief** → Creates a structured PROJECT_BRIEF.md with requirements
+3. **Generate Scaffold** → `devplan_generate_plan` creates a starting template
+4. **Enhance with Code** → Claude (Opus/Sonnet) fills in complete, copy-pasteable code
+5. **Validate** → `devplan_validate_plan` checks the plan is Haiku-executable
+6. **Execute** → Haiku implements each subtask mechanically
+7. **Verify** → Sonnet tries to break the implementation
+8. **Learn** → Issues become lessons for future projects
+
+### Validation Ensures Quality
+
+The validation step checks that plans are truly Haiku-executable:
+
+- ✅ Complete code blocks (not pseudocode or placeholders)
+- ✅ All imports included in code blocks
+- ✅ No "add to existing" instructions
+- ✅ No cross-subtask references
+- ✅ Verification commands with expected outputs
+
+```
+# Example validation output
+{
+  "valid": true,
+  "errors": [],
+  "warnings": [],
+  "stats": {
+    "subtasks": 5,
+    "codeBlocksChecked": 8,
+    "issuesFound": 0
+  }
+}
 ```
 
 ## Usage Examples
@@ -165,16 +161,16 @@ gh issue view 123 --json number,title,body,labels,comments,url > issue.json
 
 | Tool | Purpose |
 |------|---------|
-| `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold |
+| `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold with validation instructions |
 | `devplan_generate_claude_md` | Generate CLAUDE.md scaffold |
 | `devplan_generate_executor` | Generate Haiku-powered executor agent |
 | `devplan_generate_verifier` | Generate Sonnet-powered verifier agent |
 
-### Execution
+### Validation & Execution
 
 | Tool | Purpose |
 |------|---------|
-| `devplan_validate_plan` | Check plan completeness and structure |
+| `devplan_validate_plan` | Validate plan structure and Haiku-executability |
 | `devplan_get_subtask` | Get specific subtask details by ID |
 | `devplan_update_progress` | Mark subtasks complete with notes |
 | `devplan_progress_summary` | Get completion stats and next actions |
@@ -204,175 +200,9 @@ Convert GitHub issues into structured remediation tasks — perfect for bug fixe
 
 | Tool | Purpose |
 |------|---------|
-| `devplan_usage_stats` | View usage distribution across users (unique users, requests/user, histograms) |
-
-```mermaid
-flowchart LR
-    A["gh issue view 123 --json ..."] --> B[devplan_parse_issue]
-    B --> C{Analysis}
-    C --> D[Type: bug/feature]
-    C --> E[Severity: 🔴🟠🟡🔵]
-    C --> F[Components]
-    B --> G[devplan_issue_to_task]
-    G --> H[DEVELOPMENT_PLAN.md]
-
-    style A fill:#f5f5f5,stroke:#333
-    style H fill:#c8e6c9,stroke:#2e7d32
-```
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph Client["Claude Code"]
-        CC[Claude Code CLI]
-    end
-
-    subgraph MCP["DevPlan MCP Server"]
-        SSE[SSE Endpoint]
-        Dash[Dashboard]
-        Tools[21 MCP Tools]
-        Gen[Plan Generators]
-    end
-
-    subgraph Storage["Cloudflare"]
-        KV[(KV Storage)]
-        DO[Durable Objects]
-        SQL[(SQLite per-DO)]
-    end
-
-    subgraph Methodology["Reference"]
-        GH[GitHub: ClaudeCode-DevPlanBuilder]
-    end
-
-    CC <-->|SSE| SSE
-    SSE --> Tools
-    Tools --> Gen
-    Gen --> KV
-    Tools --> DO
-    DO --> SQL
-    SQL -->|cleanup| KV
-    Dash --> KV
-    Gen -.->|examples| GH
-
-    style CC fill:#e3f2fd,stroke:#1565c0
-    style KV fill:#fff3e0,stroke:#ef6c00
-    style SQL fill:#e8f5e9,stroke:#388e3c
-    style GH fill:#f3e5f5,stroke:#7b1fa2
-```
-
-### Storage Strategy
-
-| Data | Location | Rationale |
-|------|----------|-----------|
-| Session metadata | SQLite (per-DO) | Auto-deleted when DO destroyed |
-| Lessons learned | KV | Global access across sessions |
-| Aggregated analytics | KV | Fast dashboard reads |
-| Cleanup schedules | DO Alarms | Native, reliable triggering |
-
-## Dashboard & Analytics
-
-DevPlan includes a public dashboard for viewing aggregate usage statistics:
-
-**Dashboard URL**: [devplanmcp.store/dashboard](https://devplanmcp.store/dashboard)
-
-**API Endpoint**: [devplanmcp.store/dashboard/api/stats](https://devplanmcp.store/dashboard/api/stats)
-
-The dashboard shows:
-- **Summary cards**: Total sessions, total tool calls, countries reached
-- **Line chart**: Sessions and tool calls over the last 30 days
-- **Country table**: Top 10 countries by session count
-
-### Session Tracking & Cleanup
-
-Each MCP session is tracked with metadata stored in SQLite (per Durable Object):
-- Session ID and timestamps (created, last activity)
-- Geographic data (country, region, continent from Cloudflare)
-- Tool call count and transport type (SSE/HTTP)
-
-**Automatic Cleanup**: Sessions are automatically cleaned up to prevent storage bloat:
-- After **7 days of inactivity**, or
-- After **30 days maximum age**
-
-When a session expires, its metrics are aggregated to KV storage before cleanup.
-
-### Privacy
-
-All analytics are privacy-preserving:
-- **No IP storage**: Only Cloudflare-derived country/region codes
-- **No user identification**: Sessions are anonymous
-- **Auto-expiration**: Daily stats expire after 90 days via KV TTL
-- **Public dashboard**: Shows only aggregate statistics
-
-### Usage Stats via MCP
-
-You can also query usage statistics programmatically:
-
-```
-"Use devplan_usage_stats to show me the last 7 days of usage"
-```
-
-This returns detailed breakdowns including unique users, requests per user, and distribution histograms.
-
-## Recent Updates
-
-```mermaid
-timeline
-    title DevPlan MCP Server - December 2025 / January 2026
-
-    section Week 6
-        Session Cleanup : Auto-cleanup after 7d inactivity or 30d max
-        Usage Dashboard : Chart.js visualization at /dashboard
-        Analytics API : JSON endpoint at /dashboard/api/stats
-        SQLite Tracking : Per-session metadata in Durable Objects
-
-    section Week 5
-        Usage Dashboard : Public dashboard with aggregate stats
-        Session Tracking : Track unique users per day
-        Analytics Tool : devplan_usage_stats MCP tool
-
-    section Week 4
-        Haiku-Executable Phases : Claude writes complete code, not scaffolds
-        Lesson Archiving : Archive old lessons without deletion
-        Severity Filtering : Filter lessons by min severity
-        Verifier Workflow : Prompts to run verifier at 100%
-
-    section Week 3
-        Content Drift Detection : Detects outdated inline guidance
-        Inline Methodology : No external fetches needed
-        Issue Remediation : GitHub issues → tasks
-
-    section Week 2
-        Error Recovery : Executor agent guidance
-        Lessons Enhancement : Active feedback loop
-        Verifier Agent : Auto-generate verifiers
-
-    section Week 1
-        Tech Conflict Detection : Warns on bad combos
-        Task Complete Sections : Squash merge workflow
-```
+| `devplan_usage_stats` | View usage distribution across users |
 
 ## Why DevPlan?
-
-```mermaid
-graph LR
-    subgraph Without["❌ Without DevPlan"]
-        A1[Vague prompt] --> A2[Inconsistent code]
-        A2 --> A3[Lost context]
-        A3 --> A4[Repeated mistakes]
-    end
-
-    subgraph With["✅ With DevPlan"]
-        B1[Structured interview] --> B2[Detailed plan]
-        B2 --> B3[Haiku executes]
-        B3 --> B4[Sonnet verifies]
-        B4 --> B5[Lessons captured]
-        B5 -.-> B2
-    end
-
-    style A4 fill:#ffcdd2,stroke:#c62828
-    style B5 fill:#c8e6c9,stroke:#2e7d32
-```
 
 | Without DevPlan | With DevPlan |
 |-----------------|--------------|
@@ -381,6 +211,25 @@ graph LR
 | Same mistakes repeated | Lessons learned system prevents recurrence |
 | No verification step | Sonnet actively tries to break the code |
 | Bugs found in production | Issues caught before release |
+| Plans need interpretation | Validated plans are copy-paste ready |
+
+## Dashboard & Analytics
+
+DevPlan includes a public dashboard for viewing aggregate usage statistics:
+
+**Dashboard URL**: [devplanmcp.store/dashboard](https://devplanmcp.store/dashboard)
+
+The dashboard shows:
+- **Summary cards**: Total sessions, total tool calls, countries reached
+- **Line chart**: Sessions and tool calls over the last 30 days
+- **Country table**: Top 10 countries by session count
+
+### Privacy
+
+All analytics are privacy-preserving:
+- **No IP storage**: Only Cloudflare-derived country/region codes
+- **No user identification**: Sessions are anonymous
+- **Auto-expiration**: Daily stats expire after 90 days via KV TTL
 
 ## Development
 
@@ -394,10 +243,6 @@ npm run deploy   # Deploy to Cloudflare Workers
 
 Contributions welcome! Please see the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) repo for methodology details.
 
-## Community
-
-Love DevPlan? Share your experience with **#devplanmcp** on social media!
-
 ## License
 
 MIT
@@ -409,6 +254,4 @@ MIT
   <a href="https://modelcontextprotocol.io">Model Context Protocol</a> •
   <a href="https://workers.cloudflare.com/">Cloudflare Workers</a> •
   <a href="https://github.com/mmorris35/ClaudeCode-DevPlanBuilder">DevPlanBuilder Methodology</a>
-  <br><br>
-  💬 <b>#devplanmcp</b>
 </p>
