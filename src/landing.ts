@@ -74,6 +74,10 @@ export function handleLanding(): Response {
               <span class="text-red-400">✗</span>
               <span>Bugs discovered in production</span>
             </li>
+            <li class="flex items-start gap-3">
+              <span class="text-red-400">✗</span>
+              <span>No record of what was built or why</span>
+            </li>
           </ul>
         </div>
         <div class="card rounded-xl p-8 border border-green-900/30">
@@ -98,6 +102,10 @@ export function handleLanding(): Response {
             <li class="flex items-start gap-3">
               <span class="text-green-400">✓</span>
               <span>Verification catches issues early</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="text-green-400">✓</span>
+              <span>As-built docs you can reference forever</span>
             </li>
           </ul>
         </div>
@@ -137,6 +145,11 @@ export function handleLanding(): Response {
           <div class="benefit-icon mb-4">🤖</div>
           <h3 class="text-xl font-semibold text-white mb-2">Custom Agents</h3>
           <p class="text-gray-400">Auto-generates executor and verifier agents tailored to your project's tech stack.</p>
+        </div>
+        <div class="text-center">
+          <div class="benefit-icon mb-4">📋</div>
+          <h3 class="text-xl font-semibold text-white mb-2">As-Built Documentation</h3>
+          <p class="text-gray-400">PROJECT_BRIEF.md and DEVELOPMENT_PLAN.md become permanent records. Return months later and understand every decision.</p>
         </div>
       </div>
     </section>
