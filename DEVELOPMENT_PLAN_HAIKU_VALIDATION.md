@@ -41,8 +41,8 @@ please re-read CLAUDE.md and DEVELOPMENT_PLAN_HAIKU_VALIDATION.md (the entire do
 - [x] 0.1.2: Add unit tests for validation function
 
 ### Phase 1: MCP Tool
-- [ ] 1.1.1: Add devplan_validate_haiku_executable tool to index.ts
-- [ ] 1.1.2: Add integration tests
+- [x] 1.1.1: Add devplan_validate_haiku_executable tool to index.ts
+- [x] 1.1.2: Add integration tests
 
 ### Phase 2: Workflow Enforcement
 - [ ] 2.1.1: Update devplan_generate_plan description
@@ -816,10 +816,10 @@ npx vitest run src/__tests__/haiku-validation.test.ts
 - [x] 0.1.2: Add unit tests for validation function
 
 **Deliverables**:
-- [ ] Add import for `validateHaikuExecutable` in index.ts
-- [ ] Add `devplan_validate_haiku_executable` tool definition
-- [ ] Format validation results for Claude to understand and act on
-- [ ] Return actionable error messages
+- [x] Add import for `validateHaikuExecutable` in index.ts
+- [x] Add `devplan_validate_haiku_executable` tool definition
+- [x] Format validation results for Claude to understand and act on
+- [x] Return actionable error messages
 
 **Complete Code**:
 
@@ -988,9 +988,9 @@ You MUST fix all issues above before presenting this plan to the user. For each 
 - `src/index.ts` (update import, add tool)
 
 **Success Criteria**:
-- [ ] Import includes `validateHaikuExecutable` and types
-- [ ] Tool is registered with correct schema
-- [ ] TypeScript compiles without errors: `npx tsc --noEmit`
+- [x] Import includes `validateHaikuExecutable` and types
+- [x] Tool is registered with correct schema
+- [x] TypeScript compiles without errors: `npx tsc --noEmit`
 
 **Verification**:
 ```bash
@@ -1007,13 +1007,13 @@ grep -c "validateHaikuExecutable" src/index.ts
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Added devplan_validate_haiku_executable MCP tool (Tool 21) to index.ts with proper import of validateHaikuExecutable function and types. Tool returns formatted reports for both passing and failing plans with actionable fix instructions.
 - **Files Created**: None
 - **Files Modified**: src/index.ts
 - **Tests**: (integration tests in next subtask)
-- **Build**: tsc: pass/fail
+- **Build**: tsc: pass
 - **Branch**: feature/1-1-mcp-tool
-- **Notes**: (any additional context)
+- **Notes**: Tool outputs markdown-formatted validation reports grouped by subtask
 
 ---
 
@@ -1023,10 +1023,10 @@ grep -c "validateHaikuExecutable" src/index.ts
 - [x] 1.1.1: Add devplan_validate_haiku_executable tool to index.ts
 
 **Deliverables**:
-- [ ] Create `src/__tests__/haiku-validation-integration.test.ts`
-- [ ] Test validation of valid plan
-- [ ] Test validation of invalid plan
-- [ ] Verify error messages are actionable
+- [x] Create `src/__tests__/haiku-validation-integration.test.ts`
+- [x] Test validation of valid plan
+- [x] Test validation of invalid plan
+- [x] Verify error messages are actionable
 
 **Complete Code**:
 
@@ -1290,9 +1290,9 @@ Add to \`src/valid.ts\`:
 - None
 
 **Success Criteria**:
-- [ ] Test file exists
-- [ ] All integration tests pass
-- [ ] Tests verify real-world scenarios
+- [x] Test file exists
+- [x] All integration tests pass
+- [x] Tests verify real-world scenarios
 
 **Verification**:
 ```bash
@@ -1306,20 +1306,20 @@ npx vitest run
 ---
 
 **Completion Notes**:
-- **Implementation**: (describe what was done)
+- **Implementation**: Created integration tests with real-world valid and invalid plan fixtures. Tests verify complete workflow including error detection and fix instruction quality.
 - **Files Created**: src/__tests__/haiku-validation-integration.test.ts
 - **Files Modified**: None
 - **Tests**: 5 tests, all passing
-- **Build**: vitest: pass/fail
+- **Build**: vitest: pass
 - **Branch**: feature/1-1-mcp-tool
-- **Notes**: (any additional context)
+- **Notes**: Tests cover valid plans, invalid plans with multiple issues, actionable fixes, correct subtask identification, and mixed valid/invalid subtasks
 
 ---
 
 ### Task 1.1 Complete - Squash Merge
-- [ ] All subtasks complete (1.1.1 - 1.1.2)
-- [ ] All tests pass: `npx vitest run`
-- [ ] TypeScript compiles: `npx tsc --noEmit`
+- [x] All subtasks complete (1.1.1 - 1.1.2)
+- [x] All tests pass: `npx vitest run`
+- [x] TypeScript compiles: `npx tsc --noEmit`
 - [ ] Squash merge to main: `git checkout main && git merge --squash feature/1-1-mcp-tool`
 - [ ] Push to remote: `git push origin main`
 - [ ] Delete branch: `git branch -d feature/1-1-mcp-tool`
