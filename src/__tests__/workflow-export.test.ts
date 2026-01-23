@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parsePlanToStructure } from "../workflow-export";
+import { parsePlanToStructure, generateNodes, generateEdges } from "../workflow-export";
+import type { ParsedPlan } from "../workflow-types";
 
 // ============================================
 // Test Fixtures - Sample Plan Content
@@ -84,6 +85,74 @@ Phase 1: Implementation
 **Success Criteria**:
 - [ ] Feature works
 `;
+
+// ============================================
+// Sample Parsed Plan for Node/Edge Tests
+// ============================================
+
+const SAMPLE_PARSED_PLAN: ParsedPlan = {
+	projectName: "Test Project",
+	goal: "Test workflow generation",
+	phases: [
+		{
+			number: 0,
+			title: "Foundation",
+			goal: "Set up project",
+			duration: "1 day",
+			tasks: [
+				{
+					id: "0.1",
+					title: "Setup",
+					gitBranch: "feature/0-1-setup",
+					subtasks: [
+						{
+							id: "0.1.1",
+							title: "Create types",
+							description: "Create type definitions",
+							completed: true,
+							prerequisites: [],
+							deliverables: ["Create types file"],
+							successCriteria: ["TypeScript compiles"],
+						},
+						{
+							id: "0.1.2",
+							title: "Create parser",
+							description: "Create parser function",
+							completed: false,
+							prerequisites: ["0.1.1"],
+							deliverables: ["Create parser"],
+							successCriteria: ["Parser works"],
+						},
+					],
+				},
+			],
+		},
+		{
+			number: 1,
+			title: "Implementation",
+			goal: "Build features",
+			tasks: [
+				{
+					id: "1.1",
+					title: "Core",
+					subtasks: [
+						{
+							id: "1.1.1",
+							title: "Feature",
+							description: "Implement feature",
+							completed: false,
+							prerequisites: ["0.1.2"],
+							deliverables: ["Implement"],
+							successCriteria: ["Works"],
+						},
+					],
+				},
+			],
+		},
+	],
+	currentPhase: 0,
+	nextSubtask: "0.1.2",
+};
 
 // ============================================
 // Parser Tests
@@ -178,6 +247,112 @@ describe("workflow-export", () => {
 
 			expect(result.success).toBe(false);
 			expect(result.error).toContain("No phases found");
+		});
+	});
+
+	// ============================================
+	// Node Generation Tests
+	// ============================================
+
+	describe("generateNodes", () => {
+		it("should create nodes for all phases", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+
+			const phaseNodes = nodes.filter((n) => n.type === "phase");
+			expect(phaseNodes).toHaveLength(2);
+			expect(phaseNodes[0].id).toBe("phase-0");
+			expect(phaseNodes[1].id).toBe("phase-1");
+		});
+
+		it("should create nodes for all tasks", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+
+			const taskNodes = nodes.filter((n) => n.type === "task");
+			expect(taskNodes).toHaveLength(2);
+			expect(taskNodes[0].id).toBe("task-0.1");
+			expect(taskNodes[1].id).toBe("task-1.1");
+		});
+
+		it("should create nodes for all subtasks", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+
+			const subtaskNodes = nodes.filter((n) => n.type === "subtask");
+			expect(subtaskNodes).toHaveLength(3);
+			expect(subtaskNodes.map((n) => n.id)).toContain("subtask-0.1.1");
+			expect(subtaskNodes.map((n) => n.id)).toContain("subtask-0.1.2");
+			expect(subtaskNodes.map((n) => n.id)).toContain("subtask-1.1.1");
+		});
+
+		it("should set correct status for completed subtasks", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+
+			const subtask011 = nodes.find((n) => n.id === "subtask-0.1.1");
+			expect(subtask011?.data.status).toBe("completed");
+
+			const subtask012 = nodes.find((n) => n.id === "subtask-0.1.2");
+			expect(subtask012?.data.status).toBe("pending");
+		});
+
+		it("should calculate phase status from subtasks", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN);
+
+			const phase0 = nodes.find((n) => n.id === "phase-0");
+			expect(phase0?.data.status).toBe("in_progress");
+
+			const phase1 = nodes.find((n) => n.id === "phase-1");
+			expect(phase1?.data.status).toBe("pending");
+		});
+
+		it("should filter completed subtasks when option is set", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN, { includeCompleted: false });
+
+			const subtaskNodes = nodes.filter((n) => n.type === "subtask");
+			expect(subtaskNodes).toHaveLength(2);
+			expect(subtaskNodes.map((n) => n.id)).not.toContain("subtask-0.1.1");
+		});
+
+		it("should include success criteria when option is set", () => {
+			const nodes = generateNodes(SAMPLE_PARSED_PLAN, { includeSuccessCriteria: true });
+
+			const subtask = nodes.find((n) => n.id === "subtask-0.1.1");
+			expect(subtask?.data.successCriteria).toContain("TypeScript compiles");
+		});
+	});
+
+	// ============================================
+	// Edge Generation Tests
+	// ============================================
+
+	describe("generateEdges", () => {
+		it("should create dependency edges from prerequisites", () => {
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+
+			const edge012 = edges.find((e) => e.id === "edge-0.1.1-to-0.1.2");
+			expect(edge012).toBeDefined();
+			expect(edge012?.source).toBe("subtask-0.1.1");
+			expect(edge012?.target).toBe("subtask-0.1.2");
+
+			const edge111 = edges.find((e) => e.id === "edge-0.1.2-to-1.1.1");
+			expect(edge111).toBeDefined();
+		});
+
+		it("should create phase-to-phase edges", () => {
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+
+			const phaseEdge = edges.find((e) => e.id === "edge-phase-0-to-1");
+			expect(phaseEdge).toBeDefined();
+			expect(phaseEdge?.source).toBe("phase-0");
+			expect(phaseEdge?.target).toBe("phase-1");
+		});
+
+		it("should animate edges for incomplete dependencies", () => {
+			const edges = generateEdges(SAMPLE_PARSED_PLAN);
+
+			const edge012 = edges.find((e) => e.id === "edge-0.1.1-to-0.1.2");
+			expect(edge012?.animated).toBe(false);
+
+			const edge111 = edges.find((e) => e.id === "edge-0.1.2-to-1.1.1");
+			expect(edge111?.animated).toBe(true);
 		});
 	});
 });
