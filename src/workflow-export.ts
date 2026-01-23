@@ -9,7 +9,15 @@ import type {
 	ParsedTask,
 	ParsedSubtask,
 	ParseResult,
+	WorkflowNode,
+	WorkflowNodeData,
+	WorkflowEdge,
+	ExportOptions,
 } from "./workflow-types";
+
+// ============================================
+// Plan Parser
+// ============================================
 
 /**
  * Parse a DEVELOPMENT_PLAN.md file into structured data.
@@ -261,4 +269,190 @@ function parseSuccessCriteria(content: string): string[] {
 	}
 
 	return criteria;
+}
+
+// ============================================
+// Node Generation
+// ============================================
+
+/**
+ * Generate ReactFlow nodes from a parsed plan.
+ * Positions are placeholders - use applyLayout() for final positioning.
+ *
+ * @param plan - Parsed plan structure
+ * @param options - Export options
+ * @returns Array of workflow nodes
+ */
+export function generateNodes(plan: ParsedPlan, options: ExportOptions = {}): WorkflowNode[] {
+	const nodes: WorkflowNode[] = [];
+	const includeCompleted = options.includeCompleted ?? true;
+	const includeSuccessCriteria = options.includeSuccessCriteria ?? false;
+
+	for (const phase of plan.phases) {
+		// Create phase node
+		const phaseId = `phase-${phase.number}`;
+		const phaseStatus = getPhaseStatus(phase);
+
+		nodes.push({
+			id: phaseId,
+			type: "phase",
+			position: { x: 0, y: 0 },
+			data: {
+				label: `Phase ${phase.number}: ${phase.title}`,
+				description: phase.goal,
+				status: phaseStatus,
+				planId: String(phase.number),
+				duration: phase.duration,
+			},
+		});
+
+		for (const task of phase.tasks) {
+			// Create task node
+			const taskId = `task-${task.id}`;
+			const taskStatus = getTaskStatus(task);
+
+			nodes.push({
+				id: taskId,
+				type: "task",
+				position: { x: 0, y: 0 },
+				parentNode: phaseId,
+				data: {
+					label: `Task ${task.id}: ${task.title}`,
+					status: taskStatus,
+					planId: task.id,
+				},
+			});
+
+			for (const subtask of task.subtasks) {
+				// Skip completed subtasks if option is set
+				if (!includeCompleted && subtask.completed) {
+					continue;
+				}
+
+				// Create subtask node
+				const subtaskNodeId = `subtask-${subtask.id}`;
+				const subtaskStatus: "pending" | "in_progress" | "completed" =
+					subtask.completed ? "completed" : "pending";
+
+				const nodeData: WorkflowNodeData = {
+					label: `${subtask.id}: ${subtask.title}`,
+					description: subtask.description,
+					status: subtaskStatus,
+					planId: subtask.id,
+				};
+
+				if (includeSuccessCriteria && subtask.successCriteria.length > 0) {
+					nodeData.successCriteria = subtask.successCriteria;
+				}
+
+				nodes.push({
+					id: subtaskNodeId,
+					type: "subtask",
+					position: { x: 0, y: 0 },
+					parentNode: taskId,
+					data: nodeData,
+				});
+			}
+		}
+	}
+
+	return nodes;
+}
+
+/**
+ * Determine phase status based on task completion.
+ */
+function getPhaseStatus(phase: ParsedPhase): "pending" | "in_progress" | "completed" {
+	const allSubtasks = phase.tasks.flatMap((t) => t.subtasks);
+	const completedCount = allSubtasks.filter((s) => s.completed).length;
+
+	if (completedCount === 0) return "pending";
+	if (completedCount === allSubtasks.length) return "completed";
+	return "in_progress";
+}
+
+/**
+ * Determine task status based on subtask completion.
+ */
+function getTaskStatus(task: ParsedTask): "pending" | "in_progress" | "completed" {
+	const completedCount = task.subtasks.filter((s) => s.completed).length;
+
+	if (completedCount === 0) return "pending";
+	if (completedCount === task.subtasks.length) return "completed";
+	return "in_progress";
+}
+
+// ============================================
+// Edge Generation
+// ============================================
+
+/**
+ * Generate ReactFlow edges from a parsed plan.
+ * Creates dependency edges based on prerequisites and hierarchical edges for structure.
+ *
+ * @param plan - Parsed plan structure
+ * @param options - Export options
+ * @returns Array of workflow edges
+ */
+export function generateEdges(plan: ParsedPlan, options: ExportOptions = {}): WorkflowEdge[] {
+	const edges: WorkflowEdge[] = [];
+	const includeCompleted = options.includeCompleted ?? true;
+
+	// Build a map of subtask IDs for quick lookup
+	const subtaskMap = new Map<string, ParsedSubtask>();
+	for (const phase of plan.phases) {
+		for (const task of phase.tasks) {
+			for (const subtask of task.subtasks) {
+				subtaskMap.set(subtask.id, subtask);
+			}
+		}
+	}
+
+	// Create dependency edges from prerequisites
+	for (const phase of plan.phases) {
+		for (const task of phase.tasks) {
+			for (const subtask of task.subtasks) {
+				// Skip completed subtasks if option is set
+				if (!includeCompleted && subtask.completed) {
+					continue;
+				}
+
+				for (const prereqId of subtask.prerequisites) {
+					const prereqSubtask = subtaskMap.get(prereqId);
+
+					// Skip edge if prerequisite is completed and we're filtering
+					if (!includeCompleted && prereqSubtask?.completed) {
+						continue;
+					}
+
+					edges.push({
+						id: `edge-${prereqId}-to-${subtask.id}`,
+						source: `subtask-${prereqId}`,
+						target: `subtask-${subtask.id}`,
+						type: "smoothstep",
+						animated: !prereqSubtask?.completed,
+						style: prereqSubtask?.completed
+							? { stroke: "#22c55e" }
+							: { stroke: "#6b7280" },
+					});
+				}
+			}
+		}
+	}
+
+	// Create phase-to-phase edges (sequential flow)
+	for (let i = 0; i < plan.phases.length - 1; i++) {
+		const current = plan.phases[i];
+		const next = plan.phases[i + 1];
+
+		edges.push({
+			id: `edge-phase-${current.number}-to-${next.number}`,
+			source: `phase-${current.number}`,
+			target: `phase-${next.number}`,
+			type: "smoothstep",
+			style: { stroke: "#3b82f6", strokeWidth: 2 },
+		});
+	}
+
+	return edges;
 }
