@@ -17,9 +17,10 @@
 |---------|-------------|
 | **Haiku-Executable Plans** | Plans so detailed that Claude Haiku can execute them mechanically |
 | **Built-in Validation** | Validates plans are complete before execution begins |
+| **Real-Time Progress Tracking** | Integrates with Claude Code's Task tools for live visibility |
 | **Lessons Learned** | Captures issues from verification and injects them into future plans |
 | **Issue Remediation** | Converts GitHub issues directly into remediation tasks |
-| **Executor & Verifier Agents** | Auto-generates specialized agents for your project |
+| **Executor & Verifier Agents** | Auto-generates specialized agents with task tracking built-in |
 
 ## Install
 
@@ -124,6 +125,24 @@ The validation step checks that plans are truly Haiku-executable:
 }
 ```
 
+### Real-Time Progress with Task Tools
+
+Generated executor and verifier agents integrate with Claude Code's Task tools for live progress visibility:
+
+- **Executor agents** create tasks for each subtask, showing real-time spinners as work progresses
+- **Verifier agents** create tasks for each verification phase (Smoke Tests, Feature Verification, Edge Cases, etc.)
+- Progress is visible without scrolling — you always know what Claude is working on
+
+```
+# Example: Executor tracks subtasks
+TaskCreate({ subject: "1.2.3: Implement auth middleware", activeForm: "Implementing auth middleware" })
+TaskUpdate({ taskId: "...", status: "in_progress" })
+# ... work happens ...
+TaskUpdate({ taskId: "...", status: "completed" })
+```
+
+Both Task tools (real-time visibility) and DEVELOPMENT_PLAN.md (durable record) are updated — giving you the best of both worlds.
+
 ## Usage Examples
 
 ### New Project
@@ -163,8 +182,8 @@ gh issue view 123 --json number,title,body,labels,comments,url > issue.json
 |------|---------|
 | `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold with validation instructions |
 | `devplan_generate_claude_md` | Generate CLAUDE.md scaffold |
-| `devplan_generate_executor` | Generate Haiku-powered executor agent |
-| `devplan_generate_verifier` | Generate Sonnet-powered verifier agent |
+| `devplan_generate_executor` | Generate Haiku-powered executor agent with Task tool integration |
+| `devplan_generate_verifier` | Generate Sonnet-powered verifier agent with Task tool integration |
 
 ### Validation & Execution
 

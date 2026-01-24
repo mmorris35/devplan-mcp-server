@@ -97,7 +97,7 @@ export function handleLanding(): Response {
             </li>
             <li class="flex items-start gap-3">
               <span class="text-green-400">✓</span>
-              <span>Copy-paste code that works</span>
+              <span>Real-time progress with Task tools</span>
             </li>
             <li class="flex items-start gap-3">
               <span class="text-green-400">✓</span>
@@ -147,6 +147,11 @@ export function handleLanding(): Response {
           <p class="text-gray-400">Auto-generates executor and verifier agents tailored to your project's tech stack.</p>
         </div>
         <div class="text-center">
+          <div class="benefit-icon mb-4">📊</div>
+          <h3 class="text-xl font-semibold text-white mb-2">Real-Time Progress</h3>
+          <p class="text-gray-400">Integrates with Claude Code's Task tools. See live spinners and progress without scrolling.</p>
+        </div>
+        <div class="text-center">
           <div class="benefit-icon mb-4">📋</div>
           <h3 class="text-xl font-semibold text-white mb-2">As-Built Documentation</h3>
           <p class="text-gray-400">PROJECT_BRIEF.md and DEVELOPMENT_PLAN.md become permanent records. Return months later and understand every decision.</p>
@@ -177,7 +182,7 @@ export function handleLanding(): Response {
         <div class="card rounded-xl p-6 text-center">
           <div class="text-3xl font-bold text-orange-400 mb-2">4</div>
           <h3 class="font-semibold text-white mb-2">Execute</h3>
-          <p class="text-gray-400 text-sm">Haiku implements while Sonnet verifies. Lessons captured for next time.</p>
+          <p class="text-gray-400 text-sm">Haiku implements with live progress tracking. Sonnet verifies. Lessons captured.</p>
         </div>
       </div>
     </section>
