@@ -3863,6 +3863,22 @@ ${brief.projectName}/
 └── CLAUDE.md               # Development rules
 \`\`\`
 
+## Task Tracking
+
+This executor uses Claude Code's Task tools for real-time progress visibility alongside DEVELOPMENT_PLAN.md updates.
+
+**Task tools provide**:
+- Real-time spinner showing active work
+- Progress visible without scrolling conversation
+- Session-scoped tracking for immediate feedback
+
+**DEVELOPMENT_PLAN.md provides**:
+- Durable record in the repository
+- Completion notes with implementation context
+- Source of truth that persists across sessions
+
+**Both are required** - Task tools for visibility, document updates for persistence.
+
 ## Haiku-Executable Expectations
 
 Each subtask in the DEVELOPMENT_PLAN.md contains:
@@ -3892,9 +3908,28 @@ Before executing ANY subtask:
    - Verify correct branch for the TASK (not subtask)
    - Create branch if starting a new task: \`feature/{phase}-{task}-{description}\`
 
+5. **Initialize task tracking**:
+   - Use TaskList to check existing tasks
+   - If no task exists for this subtask, use TaskCreate:
+     \`\`\`
+     TaskCreate({
+       subject: "X.Y.Z: [subtask title from plan]",
+       description: "[deliverables from plan]",
+       activeForm: "Implementing [brief description]"
+     })
+     \`\`\`
+   - This creates visibility for the user during execution
+
 ## Execution Protocol
 
 For each subtask:
+
+### 0. Mark Task In Progress
+Before starting any work, update task status for real-time visibility:
+\`\`\`
+TaskUpdate({ taskId: "[task-id]", status: "in_progress" })
+\`\`\`
+This shows the user what you're actively working on with a spinner.
 
 ### 1. Cross-Check Before Writing
 - Read existing files that will be modified
@@ -3932,13 +3967,18 @@ npm test`}
 \`\`\`
 
 ### 5. Update Documentation
-- Mark all deliverable checkboxes \`[x]\` complete
+- Mark all deliverable checkboxes \`[x]\` complete in DEVELOPMENT_PLAN.md
 - Fill in Completion Notes template with:
   - Implementation summary
   - Files created (with line counts)
   - Files modified
   - Test results and coverage
   - Build verification results
+- Update task status for real-time visibility:
+  \`\`\`
+  TaskUpdate({ taskId: "[task-id]", status: "completed" })
+  \`\`\`
+- Use TaskList to see remaining work in the phase
 
 ### 6. Commit
 \`\`\`bash
@@ -3973,7 +4013,8 @@ Branch naming: \`feature/{phase}-{task}-{short-description}\`
 
 If blocked:
 1. Do NOT commit broken code
-2. Document in DEVELOPMENT_PLAN.md:
+2. Do NOT mark task as completed - leave status as \`in_progress\`
+3. Document in DEVELOPMENT_PLAN.md:
    \`\`\`markdown
    **Completion Notes**:
    - **Status**: ❌ BLOCKED
@@ -3982,7 +4023,7 @@ If blocked:
    - **Root Cause**: [Analysis]
    - **Suggested Fix**: [What should be done]
    \`\`\`
-3. Report immediately to user
+4. Report immediately to user
 
 ## If Verification Fails
 
@@ -4050,7 +4091,8 @@ When squash merging and conflicts occur:
 If you cannot complete a subtask due to context limits or interruption:
 
 1. **DO NOT** commit partial/broken work to main
-2. Commit work-in-progress to feature branch:
+2. **DO NOT** mark task as completed - leave status as \`in_progress\`
+3. Commit work-in-progress to feature branch:
    \`\`\`bash
    git add .
    git commit -m "WIP: subtask X.Y.Z - [what was completed]
@@ -4059,7 +4101,7 @@ If you cannot complete a subtask due to context limits or interruption:
    - [what still needs to be done]
    - [any blockers or issues found]"
    \`\`\`
-3. Update DEVELOPMENT_PLAN.md with partial progress:
+4. Update DEVELOPMENT_PLAN.md with partial progress:
    \`\`\`markdown
    **Completion Notes**:
    - **Status**: ⏸️ IN PROGRESS
@@ -4067,8 +4109,8 @@ If you cannot complete a subtask due to context limits or interruption:
    - **Remaining**: [List what still needs to be done]
    - **Resume From**: [Specific point to continue from]
    \`\`\`
-4. Mark subtask checkbox as \`[-]\` (partial) not \`[x]\` (complete)
-5. Next session can resume by:
+5. Mark subtask checkbox as \`[-]\` (partial) not \`[x]\` (complete)
+6. Next session can resume by:
    - Reading the WIP commit message
    - Checking Completion Notes for context
    - Continuing from documented resume point
