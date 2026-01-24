@@ -4184,6 +4184,17 @@ Validate the completed **${brief.projectName}** application using critical analy
 | Follows DEVELOPMENT_PLAN.md | Validates against PROJECT_BRIEF.md |
 | Outputs code + commits | Outputs verification report |
 
+## Task Tracking
+
+This verifier uses Claude Code's Task tools for real-time progress visibility during verification.
+
+**Task tools provide**:
+- Real-time spinner showing which verification phase is running
+- Progress visible without scrolling conversation
+- Clear indication of completed vs remaining phases
+
+**Create tasks upfront** for each verification phase, then mark them in_progress/completed as you work through them.
+
 ## Mandatory Initialization
 
 Before ANY verification:
@@ -4192,10 +4203,22 @@ Before ANY verification:
 2. **Read CLAUDE.md** for project conventions
 3. **Understand the MVP features** - these are what you verify
 4. **Note constraints** - Must Use / Cannot Use technologies
+5. **Create verification tasks** for progress tracking:
+   \`\`\`
+   TaskCreate({ subject: "1. Smoke Tests", description: "Verify app starts and basic commands work", activeForm: "Running smoke tests" })
+   TaskCreate({ subject: "2. Feature Verification", description: "Verify each MVP feature from PROJECT_BRIEF.md", activeForm: "Verifying features" })
+   TaskCreate({ subject: "3. Edge Case Testing", description: "Test boundary conditions and error scenarios", activeForm: "Testing edge cases" })
+   TaskCreate({ subject: "4. Error Handling", description: "Verify error messages and recovery", activeForm: "Checking error handling" })
+   TaskCreate({ subject: "5. Non-Functional Requirements", description: "Check performance, security, docs, tests", activeForm: "Verifying non-functional requirements" })
+   TaskCreate({ subject: "6. Generate Report", description: "Produce verification report with findings", activeForm: "Generating verification report" })
+   \`\`\`
 
 ## Verification Checklist
 
 ### 1. Smoke Tests
+\`\`\`
+TaskUpdate({ taskId: "[smoke-tests-task-id]", status: "in_progress" })
+\`\`\`
 - [ ] Application starts without errors
 - [ ] Basic commands respond correctly
 - [ ] No crashes on standard input
@@ -4209,15 +4232,27 @@ echo "test input" | ${projectSlug}` : `# Example smoke tests for Node.js
 npm start
 npm run --help`}
 \`\`\`
+\`\`\`
+TaskUpdate({ taskId: "[smoke-tests-task-id]", status: "completed" })
+\`\`\`
 
 ### 2. Feature Verification
+\`\`\`
+TaskUpdate({ taskId: "[feature-verification-task-id]", status: "in_progress" })
+\`\`\`
 For EACH feature in PROJECT_BRIEF.md:
 - [ ] Feature exists and is accessible
 - [ ] Feature works as specified
 - [ ] Output matches expected format
 - [ ] Feature handles typical use cases
+\`\`\`
+TaskUpdate({ taskId: "[feature-verification-task-id]", status: "completed" })
+\`\`\`
 
 ### 3. Edge Case Testing
+\`\`\`
+TaskUpdate({ taskId: "[edge-case-task-id]", status: "in_progress" })
+\`\`\`
 Test boundary conditions the plan may have missed:
 - [ ] Empty input handling
 - [ ] Extremely large input
@@ -4226,14 +4261,26 @@ Test boundary conditions the plan may have missed:
 - [ ] Invalid file paths (if applicable)
 - [ ] Network failures (if applicable)
 - [ ] Permission errors (if applicable)
+\`\`\`
+TaskUpdate({ taskId: "[edge-case-task-id]", status: "completed" })
+\`\`\`
 
 ### 4. Error Handling
+\`\`\`
+TaskUpdate({ taskId: "[error-handling-task-id]", status: "in_progress" })
+\`\`\`
 - [ ] Errors produce helpful messages (not stack traces)
 - [ ] Invalid input is rejected gracefully
 - [ ] Application recovers from non-fatal errors
 - [ ] Exit codes are appropriate (0 success, non-zero failure)
+\`\`\`
+TaskUpdate({ taskId: "[error-handling-task-id]", status: "completed" })
+\`\`\`
 
 ### 5. Non-Functional Requirements
+\`\`\`
+TaskUpdate({ taskId: "[non-functional-task-id]", status: "in_progress" })
+\`\`\`
 - [ ] Performance: Reasonable response time
 - [ ] Security: No obvious vulnerabilities (injection, path traversal, etc.)
 - [ ] Documentation: README exists with usage instructions
@@ -4256,8 +4303,14 @@ npm run lint
 # Check types
 npm run typecheck`}
 \`\`\`
+\`\`\`
+TaskUpdate({ taskId: "[non-functional-task-id]", status: "completed" })
+\`\`\`
 
 ## Verification Report Template
+\`\`\`
+TaskUpdate({ taskId: "[generate-report-task-id]", status: "in_progress" })
+\`\`\`
 
 After verification, produce this report:
 
@@ -4324,6 +4377,11 @@ After verification, produce this report:
 
 ---
 *Verified by ${projectSlug}-verifier agent*
+\`\`\`
+
+\`\`\`
+TaskUpdate({ taskId: "[generate-report-task-id]", status: "completed" })
+TaskList()  // Show final status of all verification tasks
 \`\`\`
 
 ## Issue Resolution Workflow
