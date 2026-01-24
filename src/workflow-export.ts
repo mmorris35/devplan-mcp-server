@@ -15,6 +15,7 @@ import type {
 	WorkflowExport,
 	WorkflowMetadata,
 	ExportOptions,
+	MermaidExport,
 } from "./workflow-types";
 
 // ============================================
@@ -558,11 +559,178 @@ export function applyLayout(
 // ============================================
 
 /**
- * Export result type.
+ * Export result type for JSON format.
  */
 export type ExportResult =
 	| { success: true; workflow: WorkflowExport }
 	| { success: false; error: string };
+
+/**
+ * Export result type for Mermaid format.
+ */
+export type MermaidExportResult =
+	| { success: true; mermaid: MermaidExport }
+	| { success: false; error: string };
+
+/**
+ * Generate Mermaid flowchart diagram from parsed plan.
+ *
+ * @param plan - Parsed plan structure
+ * @param options - Export options
+ * @returns Mermaid diagram syntax
+ */
+export function generateMermaidDiagram(plan: ParsedPlan, options: ExportOptions = {}): string {
+	const lines: string[] = [];
+	const includeCompleted = options.includeCompleted !== false;
+
+	lines.push("flowchart TD");
+
+	// Track subtask IDs for dependency edges
+	const subtaskIds: string[] = [];
+
+	for (const phase of plan.phases) {
+		// Create subgraph for each phase
+		const phaseId = `P${phase.number}`;
+		lines.push(`    subgraph ${phaseId}["Phase ${phase.number}: ${escapeLabel(phase.title)}"]`);
+
+		for (const task of phase.tasks) {
+			const taskId = `T${task.id.replace(/\./g, "_")}`;
+
+			for (const subtask of task.subtasks) {
+				if (!includeCompleted && subtask.completed) continue;
+
+				const subtaskId = `S${subtask.id.replace(/\./g, "_")}`;
+				const status = subtask.completed ? "DONE" : "TODO";
+				const shortTitle = truncateLabel(subtask.title, 30);
+				lines.push(`        ${subtaskId}["${status}: ${subtask.id} ${escapeLabel(shortTitle)}"]`);
+				subtaskIds.push(subtask.id);
+			}
+
+			// Link subtasks sequentially within task
+			const taskSubtasks = task.subtasks.filter(s => includeCompleted || !s.completed);
+			for (let i = 0; i < taskSubtasks.length - 1; i++) {
+				const fromId = `S${taskSubtasks[i].id.replace(/\./g, "_")}`;
+				const toId = `S${taskSubtasks[i + 1].id.replace(/\./g, "_")}`;
+				lines.push(`        ${fromId} --> ${toId}`);
+			}
+		}
+
+		lines.push("    end");
+	}
+
+	// Add phase-to-phase edges
+	for (let i = 0; i < plan.phases.length - 1; i++) {
+		const fromPhase = `P${plan.phases[i].number}`;
+		const toPhase = `P${plan.phases[i + 1].number}`;
+		lines.push(`    ${fromPhase} --> ${toPhase}`);
+	}
+
+	// Add cross-phase prerequisite edges (dashed)
+	for (const phase of plan.phases) {
+		for (const task of phase.tasks) {
+			for (const subtask of task.subtasks) {
+				if (!includeCompleted && subtask.completed) continue;
+
+				for (const prereqId of subtask.prerequisites) {
+					const prereqPhase = prereqId.split(".")[0];
+					const subtaskPhase = subtask.id.split(".")[0];
+					if (prereqPhase !== subtaskPhase && subtaskIds.includes(prereqId)) {
+						const fromId = `S${prereqId.replace(/\./g, "_")}`;
+						const toId = `S${subtask.id.replace(/\./g, "_")}`;
+						lines.push(`    ${fromId} -.-> ${toId}`);
+					}
+				}
+			}
+		}
+	}
+
+	// Add styling
+	lines.push("    classDef done fill:#22c55e,stroke:#16a34a,color:#fff");
+	lines.push("    classDef todo fill:#94a3b8,stroke:#64748b,color:#000");
+
+	// Apply styles to nodes
+	const completedNodes: string[] = [];
+	const pendingNodes: string[] = [];
+
+	for (const phase of plan.phases) {
+		for (const task of phase.tasks) {
+			for (const subtask of task.subtasks) {
+				if (!includeCompleted && subtask.completed) continue;
+				const subtaskId = `S${subtask.id.replace(/\./g, "_")}`;
+				if (subtask.completed) {
+					completedNodes.push(subtaskId);
+				} else {
+					pendingNodes.push(subtaskId);
+				}
+			}
+		}
+	}
+
+	if (completedNodes.length > 0) {
+		lines.push(`    class ${completedNodes.join(",")} done`);
+	}
+	if (pendingNodes.length > 0) {
+		lines.push(`    class ${pendingNodes.join(",")} todo`);
+	}
+
+	return lines.join("\n");
+}
+
+/**
+ * Escape special characters for Mermaid labels.
+ * Uses quoted label format ["text"] to allow special characters.
+ */
+function escapeLabel(text: string): string {
+	// Inside quoted labels, only need to escape quotes and backslashes
+	return text.replace(/\\/g, "\\\\").replace(/"/g, "#quot;");
+}
+
+/**
+ * Truncate label to max length.
+ */
+function truncateLabel(text: string, maxLength: number): string {
+	if (text.length <= maxLength) return text;
+	return text.slice(0, maxLength - 3) + "...";
+}
+
+/**
+ * Export plan as Mermaid diagram.
+ *
+ * @param planContent - Raw DEVELOPMENT_PLAN.md content
+ * @param options - Export options
+ * @returns Mermaid export result
+ */
+export function exportMermaid(planContent: string, options: ExportOptions = {}): MermaidExportResult {
+	const parseResult = parsePlanToStructure(planContent);
+	if (!parseResult.success || !parseResult.plan) {
+		return { success: false, error: parseResult.error || "Unknown parse error" };
+	}
+
+	const plan = parseResult.plan;
+	const diagram = generateMermaidDiagram(plan, options);
+
+	const allSubtasks = plan.phases.flatMap(p => p.tasks.flatMap(t => t.subtasks));
+	const filteredSubtasks = options.includeCompleted !== false
+		? allSubtasks
+		: allSubtasks.filter(s => !s.completed);
+
+	const metadata: WorkflowMetadata = {
+		planName: plan.projectName,
+		exportedAt: new Date().toISOString(),
+		version: "1.0.0",
+		platform: "mermaid",
+		nodeCount: filteredSubtasks.length + plan.phases.length + plan.phases.flatMap(p => p.tasks).length,
+		edgeCount: 0, // Not easily countable for Mermaid
+	};
+
+	return {
+		success: true,
+		mermaid: {
+			diagram,
+			metadata,
+		},
+	};
+}
 
 /**
  * Main export function - combines parsing, node/edge generation, and layout.

@@ -83,7 +83,7 @@ export interface WorkflowMetadata {
 	/** DevPlan MCP version */
 	version: string;
 	/** Target platform */
-	platform: "sim" | "n8n" | "reactflow" | "generic";
+	platform: "sim" | "n8n" | "reactflow" | "generic" | "mermaid";
 	/** Total node count */
 	nodeCount: number;
 	/** Total edge count */
@@ -114,6 +114,8 @@ export interface WorkflowExport {
 export interface ExportOptions {
 	/** Target platform format */
 	platform?: "sim" | "n8n" | "reactflow" | "generic";
+	/** Output format: "json" for ReactFlow JSON, "mermaid" for Mermaid diagram */
+	format?: "json" | "mermaid";
 	/** Include completed subtasks */
 	includeCompleted?: boolean;
 	/** Node spacing for layout */
@@ -123,6 +125,16 @@ export interface ExportOptions {
 	};
 	/** Whether to include success criteria in node data */
 	includeSuccessCriteria?: boolean;
+}
+
+/**
+ * Mermaid diagram export result
+ */
+export interface MermaidExport {
+	/** Mermaid diagram syntax */
+	diagram: string;
+	/** Metadata about the export */
+	metadata: WorkflowMetadata;
 }
 
 // ============================================
