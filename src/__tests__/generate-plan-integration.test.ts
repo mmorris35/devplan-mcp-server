@@ -1,6 +1,241 @@
 import { describe, it, expect } from "vitest";
 import { generatePlan } from "../generators";
 
+describe("Mermaid diagram injection", () => {
+	it("should inject Mermaid diagrams into CLI plan subtask 0.1.1", () => {
+		const brief = `# PROJECT_BRIEF.md
+
+## Basic Information
+
+- **Project Name**: md2pdf
+- **Project Type**: cli
+- **Primary Goal**: Convert markdown to PDF
+- **Target Users**: Developers, writers
+- **Timeline**: 2 weeks
+- **Team Size**: 1
+
+## Functional Requirements
+
+### Key Features (MVP)
+
+- Convert markdown files to PDF
+- Validate markdown syntax
+- Export with custom styles
+
+### Nice-to-Have Features (v2)
+
+- (to be determined after MVP)
+
+## Technical Constraints
+
+### Must Use
+
+- Python 3.11+
+- Click
+
+### Cannot Use
+
+- (none specified)
+`;
+
+		const plan = generatePlan(brief);
+
+		// Should contain Mermaid diagrams section in subtask 0.1.1
+		expect(plan).toContain("Starter Mermaid Diagrams");
+		expect(plan).toContain("```mermaid");
+		expect(plan).toContain("flowchart");
+		// Should have architecture diagram
+		expect(plan).toContain("Architecture Overview:");
+		// Should have CLI command tree for CLI projects
+		expect(plan).toContain("Command Structure:");
+	});
+
+	it("should inject Mermaid diagrams into API plan subtask 0.1.1", () => {
+		const brief = `# PROJECT_BRIEF.md
+
+## Basic Information
+
+- **Project Name**: user-api
+- **Project Type**: api
+- **Primary Goal**: User management API
+- **Target Users**: API consumers
+- **Timeline**: 2 weeks
+- **Team Size**: 1
+
+## Functional Requirements
+
+### Key Features (MVP)
+
+- List users endpoint
+- Create user endpoint
+- Delete user endpoint
+
+### Nice-to-Have Features (v2)
+
+- (to be determined after MVP)
+
+## Technical Constraints
+
+### Must Use
+
+- Python 3.11+
+- FastAPI
+
+### Cannot Use
+
+- (none specified)
+`;
+
+		const plan = generatePlan(brief);
+
+		// Should contain Mermaid diagrams
+		expect(plan).toContain("Starter Mermaid Diagrams");
+		expect(plan).toContain("```mermaid");
+		// Should have architecture diagram
+		expect(plan).toContain("Architecture Overview:");
+		// Should have API endpoints diagram for API projects
+		expect(plan).toContain("API Endpoints:");
+	});
+
+	it("should inject Mermaid diagrams into web_app plan subtask 0.1.1", () => {
+		const brief = `# PROJECT_BRIEF.md
+
+## Basic Information
+
+- **Project Name**: dashboard-app
+- **Project Type**: web_app
+- **Primary Goal**: Analytics dashboard
+- **Target Users**: Business users
+- **Timeline**: 2 weeks
+- **Team Size**: 1
+
+## Functional Requirements
+
+### Key Features (MVP)
+
+- Home page with overview
+- Settings page
+- Dashboard page with charts
+
+### Nice-to-Have Features (v2)
+
+- (to be determined after MVP)
+
+## Technical Constraints
+
+### Must Use
+
+- TypeScript
+- Next.js
+
+### Cannot Use
+
+- (none specified)
+`;
+
+		const plan = generatePlan(brief);
+
+		// Should contain Mermaid diagrams
+		expect(plan).toContain("Starter Mermaid Diagrams");
+		expect(plan).toContain("```mermaid");
+		// Should have architecture diagram
+		expect(plan).toContain("Architecture Overview:");
+		// Should have page flow diagram for web_app projects
+		expect(plan).toContain("Page Flow:");
+	});
+
+	it("should inject Mermaid diagrams into library plan subtask 0.1.1", () => {
+		const brief = `# PROJECT_BRIEF.md
+
+## Basic Information
+
+- **Project Name**: data-validator
+- **Project Type**: library
+- **Primary Goal**: Data validation library
+- **Target Users**: Python developers
+- **Timeline**: 2 weeks
+- **Team Size**: 1
+
+## Functional Requirements
+
+### Key Features (MVP)
+
+- Validator module for schema validation
+- Parser class for data parsing
+
+### Nice-to-Have Features (v2)
+
+- (to be determined after MVP)
+
+## Technical Constraints
+
+### Must Use
+
+- Python 3.11+
+- pytest
+
+### Cannot Use
+
+- (none specified)
+`;
+
+		const plan = generatePlan(brief);
+
+		// Should contain Mermaid diagrams
+		expect(plan).toContain("Starter Mermaid Diagrams");
+		expect(plan).toContain("```mermaid");
+		// Should have architecture diagram
+		expect(plan).toContain("Architecture Overview:");
+		// Should have module structure diagram for library projects
+		expect(plan).toContain("Module Structure:");
+	});
+
+	it("should inject diagrams into minimal scaffold for unsupported language", () => {
+		const brief = `# PROJECT_BRIEF.md
+
+## Basic Information
+
+- **Project Name**: go-tool
+- **Project Type**: cli
+- **Primary Goal**: Go CLI tool
+- **Target Users**: Developers
+- **Timeline**: 2 weeks
+- **Team Size**: 1
+
+## Functional Requirements
+
+### Key Features (MVP)
+
+- Build command that builds projects
+- Deploy command that deploys
+
+### Nice-to-Have Features (v2)
+
+- (to be determined after MVP)
+
+## Technical Constraints
+
+### Must Use
+
+- Go
+- Cobra
+
+### Cannot Use
+
+- (none specified)
+`;
+
+		const plan = generatePlan(brief);
+
+		// Should use minimal scaffold
+		expect(plan).toContain("No specific template for");
+		// Should still contain Mermaid diagrams
+		expect(plan).toContain("Starter Mermaid Diagrams");
+		expect(plan).toContain("```mermaid");
+		expect(plan).toContain("flowchart");
+	});
+});
+
 describe("generatePlan integration", () => {
 	describe("existing templates (should use specific templates)", () => {
 		it("should generate Python CLI scaffold for Python CLI project", () => {
