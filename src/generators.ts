@@ -10,6 +10,7 @@
 import type { DevelopmentPlan, Phase, ProjectBrief, TechStack } from "./models";
 import { getTemplate, PROJECT_TYPE_TASKS, findTemplate, type PhaseTemplate } from "./templates";
 import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
+import { generateReadmeDiagrams, formatDiagramsAsMarkdown } from "./readme-diagrams";
 
 export interface BriefInput {
 	name: string;
@@ -196,6 +197,7 @@ export interface MinimalScaffoldConfig {
 	language: string;
 	techStack: TechStack;
 	features: string[];
+	diagramsMarkdown?: string;
 }
 
 /**
@@ -203,7 +205,7 @@ export interface MinimalScaffoldConfig {
  * Uses language defaults to provide appropriate project structure guidance.
  */
 export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
-	const { projectName, projectType, language, techStack, features } = config;
+	const { projectName, projectType, language, techStack, features, diagramsMarkdown } = config;
 	const langDefaults = getLanguageDefaults(language);
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 
@@ -212,7 +214,7 @@ export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
 		return text.replace(/\{project\}/g, projectUnderscore);
 	};
 
-	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders);
+	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders, diagramsMarkdown);
 	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults);
 
 	return phase0 + "\n\n---\n\n" + phase1;
@@ -226,7 +228,8 @@ function generateMinimalPhase0(
 	projectType: string,
 	language: string,
 	langDefaults: LanguageDefaults,
-	replacePlaceholders: (text: string) => string
+	replacePlaceholders: (text: string) => string,
+	diagramsMarkdown?: string
 ): string {
 	const filesToCreate = langDefaults.filesToCreate.map((f) => `- \`${replacePlaceholders(f)}\``).join("\n");
 	const projectStructure = langDefaults.projectStructure.map((d) => `- [ ] ${replacePlaceholders(d)}`).join("\n");
@@ -237,6 +240,9 @@ function generateMinimalPhase0(
 	const testingSetup = langDefaults.testingSetup.map((d) => `- [ ] ${d}`).join("\n");
 	const testingCriteria = langDefaults.testingCriteria.map((c) => `- [ ] ${c}`).join("\n");
 	const ignorePatterns = langDefaults.ignorePatterns.slice(0, 5).join(", ");
+
+	// Format diagrams section if provided
+	const diagramsSection = diagramsMarkdown ? `\n${diagramsMarkdown}\n` : "";
 
 	return `## Phase 0: Foundation
 
@@ -255,13 +261,17 @@ function generateMinimalPhase0(
 **Deliverables**:
 - [ ] Run \`git init\` to initialize repository
 - [ ] Create \`.gitignore\` with ${language} standard ignores
-- [ ] Create \`README.md\` with project name and description
+- [ ] Create \`README.md\` with project name, badges, and description
+- [ ] Add architecture diagram (Mermaid flowchart) showing main components
+- [ ] Add project-type specific diagram (command tree, endpoint map, page flow, or module structure)
+- [ ] Include installation and usage sections
 - [ ] Create \`LICENSE\` file (MIT recommended)
 - [ ] Make initial commit
 
 **Technology Decisions**:
 - Use MIT license for open-source compatibility
 - Follow semantic commit convention
+- Include Mermaid diagrams for visual documentation
 
 **Files to Create**:
 - \`.gitignore\`
@@ -270,10 +280,12 @@ function generateMinimalPhase0(
 
 **Files to Modify**:
 - None
-
+${diagramsSection}
 **Success Criteria**:
 - [ ] \`.gitignore\` includes ${language}-appropriate patterns (${ignorePatterns}, etc.)
 - [ ] README.md has \`# ${projectName}\` heading
+- [ ] README.md has architecture diagram in \`\`\`mermaid code block
+- [ ] README.md has installation section
 - [ ] First commit exists with message "chore: initial repository setup"
 - [ ] \`git status\` shows clean working tree
 
@@ -1021,12 +1033,19 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
 /**
  * Render phase templates to markdown.
  * Extracted from generatePlan() to support both template and minimal scaffold paths.
+ *
+ * @param phaseTemplates - The phase templates to render
+ * @param brief - The project brief
+ * @param lessons - Optional lessons for success criteria injection
+ * @param projectType - The project type
+ * @param diagramsMarkdown - Optional pre-generated Mermaid diagrams for README
  */
 function renderTemplatePhases(
 	phaseTemplates: PhaseTemplate[],
 	brief: ProjectBrief,
 	lessons: Lesson[] | undefined,
-	projectType: string
+	projectType: string,
+	diagramsMarkdown?: string
 ): string {
 	const phasesSection = phaseTemplates
 		.map((phase) => {
@@ -1086,6 +1105,10 @@ function renderTemplatePhases(
 							const prereqTitle = prereqId ? getSubtaskTitle(prereqId, phaseTemplates, brief.projectName) : null;
 							const prerequisite = prereqId ? `- [x] ${prereqId}: ${prereqTitle}` : "- None (first subtask)";
 
+							// Inject Mermaid diagrams for subtask 0.1.1 (README creation)
+							const diagramsSection =
+								subtask.id === "0.1.1" && diagramsMarkdown ? `\n${diagramsMarkdown}\n` : "";
+
 							return `**Subtask ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)} (Single Session)**
 
 **Prerequisites**:
@@ -1099,7 +1122,7 @@ ${filesToCreate}
 
 **Files to Modify**:
 ${filesToModify}
-
+${diagramsSection}
 **Success Criteria**:
 ${successCriteria}
 
@@ -1189,9 +1212,13 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 	let progressSection: string;
 	const projectType = templateKey.projectType;
 
+	// Generate Mermaid diagrams for README (used in subtask 0.1.1)
+	const diagrams = generateReadmeDiagrams(brief);
+	const diagramsMarkdown = formatDiagramsAsMarkdown(diagrams, projectType);
+
 	if (phaseTemplates) {
-		// Use specific template - render as before
-		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType);
+		// Use specific template - render with diagrams injected
+		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType, diagramsMarkdown);
 		progressSection = buildProgressSection(phaseTemplates, brief);
 	} else {
 		// No matching template - generate minimal scaffold
@@ -1208,6 +1235,7 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 			language: scaffoldLanguage,
 			techStack: techStack,
 			features: brief.keyFeatures,
+			diagramsMarkdown: diagramsMarkdown,
 		});
 
 		// For minimal scaffold, generate a simpler progress section
@@ -1235,16 +1263,21 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 	// Add deferred phases for nice-to-have features (Phase X.5 v2)
 	const deferredPhasesSection = generateDeferredPhases(brief);
 
+	// Generate project slug for agent references
+	const planProjectSlug = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
 	return `# ${brief.projectName} - Development Plan
 
 ## How to Use This Plan
 
 **For Claude Code**: Read this plan, find the subtask ID from the prompt, complete ALL checkboxes, update completion notes, commit.
 
-**For You**: Use this prompt (change only the subtask ID):
+**For You**: Use the executor agent to implement subtasks:
 \`\`\`
-please re-read claude.md and DEVELOPMENT_PLAN.md (the entire documents, for context), then continue with [X.Y.Z], following all of the development plan and claude.md rules.
+Use the ${planProjectSlug}-executor agent to execute subtask X.Y.Z
 \`\`\`
+
+The executor agent already knows to read CLAUDE.md and DEVELOPMENT_PLAN.md. Just give it the subtask ID and let it work.
 
 ---
 
@@ -1321,13 +1354,15 @@ git push -u origin feature/1-2-user-auth
 
 ## Ready to Build
 
-You now have a development plan so detailed that even Claude with Haiku can implement it. Each subtask is paint-by-numbers: explicit deliverables, specific files, and testable success criteria.
+You now have a development plan so detailed that even Claude Haiku can implement it. Each subtask is paint-by-numbers: explicit deliverables, specific files, and testable success criteria.
 
-**To start implementation**, use this prompt (change only the subtask ID):
+**To start implementation**, use the executor agent:
 
 \`\`\`
-Please read CLAUDE.md and DEVELOPMENT_PLAN.md completely, then implement subtask [0.1.1], following all rules and marking checkboxes as you complete each item.
+Use the ${planProjectSlug}-executor agent to execute subtask 0.1.1
 \`\`\`
+
+The executor agent handles everything: reading context, implementing the subtask, running tests, and updating progress. Just give it the subtask ID.
 
 **Pro tip**: Start with 0.1.1 and work through subtasks in order. Each one builds on the previous.
 
@@ -3624,6 +3659,8 @@ export function validateHaikuExecutable(planContent: string): HaikuValidationRes
  * Returns statistics and the next actionable subtask.
  */
 export function generateProgressSummary(planContent: string): {
+	projectName: string | null;
+	projectSlug: string | null;
 	stats: {
 		phases: number;
 		tasks: number;
@@ -3650,6 +3687,11 @@ export function generateProgressSummary(planContent: string): {
 	}>;
 } {
 	const validation = validatePlan(planContent, false);
+
+	// Extract project name from plan header (format: "# ProjectName - Development Plan")
+	const projectNameMatch = planContent.match(/^# (.+?) - Development Plan/m);
+	const projectName = projectNameMatch ? projectNameMatch[1].trim() : null;
+	const projectSlug = projectName ? projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-") : null;
 
 	// Parse phase progress
 	const phaseProgress: Array<{
@@ -3748,6 +3790,8 @@ export function generateProgressSummary(planContent: string): {
 	}
 
 	return {
+		projectName,
+		projectSlug,
 		stats: validation.stats,
 		phaseProgress,
 		nextSubtask,

@@ -143,7 +143,11 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							deliverables: [
 								"Run `git init` to initialize repository",
 								"Create `.gitignore` with Python standard ignores",
-								"Create `README.md` with project name and description sections",
+								"Create `README.md` with project name, badges, and description",
+								"Add architecture diagram (Mermaid flowchart) showing CLI structure and main components",
+								"Add command overview diagram showing CLI command tree structure",
+								"Include installation section with pip/pipx instructions",
+								"Include quick start example with code block",
 								"Create `LICENSE` file with MIT license text",
 								"Run `git add .` to stage all files",
 								"Run `git commit -m 'chore: initial repository setup'`",
@@ -153,8 +157,10 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							successCriteria: [
 								"`.gitignore` includes `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `build/`, `.env`",
 								"README.md has `# {project}` heading with project name",
-								"README.md has `## Description` section with one-sentence goal",
-								"README.md has `## Installation` section with placeholder text",
+								"README.md has architecture diagram in ```mermaid code block",
+								"README.md has CLI command tree diagram in ```mermaid code block",
+								"README.md has `## Installation` section with pip install command",
+								"README.md has `## Usage` section with example command and expected output",
 								"LICENSE file contains full MIT license text with current year",
 								"First commit exists with semantic message format",
 								"`git status` shows clean working tree after commit",
@@ -162,6 +168,7 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							techDecisions: [
 								"Use MIT license for open-source compatibility",
 								"Follow semantic commit convention from the start",
+								"Include Mermaid diagrams for visual documentation",
 							],
 						},
 						{
@@ -357,7 +364,11 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							deliverables: [
 								"Run `git init` to initialize repository",
 								"Create `.gitignore` with Node.js + Next.js ignores",
-								"Create `README.md` with project name and description",
+								"Create `README.md` with project name, badges, and description",
+								"Add architecture diagram (Mermaid flowchart) showing frontend/backend structure",
+								"Add page flow diagram showing navigation between pages/screens",
+								"Include tech stack section with framework versions",
+								"Include getting started section with npm commands",
 								"Create `LICENSE` file with MIT license text",
 								"Run `git add .` to stage all files",
 								"Run `git commit -m 'chore: initial repository setup'`",
@@ -367,7 +378,9 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							successCriteria: [
 								"`.gitignore` includes `node_modules/`, `.next/`, `.env*.local`, `*.log`",
 								"README.md has `# {project}` heading",
-								"README.md has description and tech stack sections",
+								"README.md has architecture diagram in ```mermaid code block",
+								"README.md has page flow diagram in ```mermaid code block",
+								"README.md has tech stack section listing frameworks",
 								"LICENSE file contains MIT license with current year",
 								"First commit exists with semantic message",
 								"`git status` shows clean working tree",
@@ -376,6 +389,7 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							techDecisions: [
 								"Use MIT license for open-source compatibility",
 								"Follow semantic commit convention from the start",
+								"Include Mermaid diagrams for visual documentation",
 							],
 						},
 						{
@@ -542,7 +556,11 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							deliverables: [
 								"Run `git init` to initialize repository",
 								"Create `.gitignore` with Python + API ignores",
-								"Create `README.md` with API name, description, endpoints section",
+								"Create `README.md` with API name, badges, and description",
+								"Add architecture diagram (Mermaid flowchart) showing API layers",
+								"Add endpoint map diagram showing available routes by resource",
+								"Include API endpoint summary table with methods and paths",
+								"Include setup section with install and run instructions",
 								"Create `LICENSE` file with MIT license text",
 								"Run `git add .` to stage all files",
 								"Run `git commit -m 'chore: initial repository setup'`",
@@ -552,7 +570,9 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							successCriteria: [
 								"`.gitignore` includes `__pycache__/`, `*.pyc`, `.venv/`, `.env`, `*.db`",
 								"README.md has `# {project} API` heading",
-								"README.md has `## Endpoints` section (placeholder)",
+								"README.md has architecture diagram in ```mermaid code block",
+								"README.md has endpoint map diagram in ```mermaid code block",
+								"README.md has `## Endpoints` section with route table",
 								"README.md has `## Setup` section with install instructions",
 								"LICENSE file contains MIT license with current year",
 								"First commit exists with semantic message format",
@@ -561,6 +581,7 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							techDecisions: [
 								"Use MIT license for open-source compatibility",
 								"Follow semantic commit convention from the start",
+								"Include Mermaid diagrams for visual documentation",
 							],
 						},
 						{
@@ -673,7 +694,11 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							deliverables: [
 								"Run `git init` to initialize repository",
 								"Create `.gitignore` with Python standard ignores",
-								"Create `README.md` with library name, description, installation, usage sections",
+								"Create `README.md` with library name, badges, and description",
+								"Add module structure diagram (Mermaid flowchart) showing public API and internal modules",
+								"Include installation section with pip install command",
+								"Include usage section with code example showing main imports",
+								"Include API reference section with key functions/classes",
 								"Create `LICENSE` file with MIT license text",
 								"Run `git add .` to stage all files",
 								"Run `git commit -m 'chore: initial repository setup'`",
@@ -683,8 +708,9 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							successCriteria: [
 								"`.gitignore` includes `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`",
 								"README.md has `# {project}` heading with library name",
+								"README.md has module structure diagram in ```mermaid code block",
 								"README.md has `## Installation` section with pip install command",
-								"README.md has `## Usage` section with code example placeholder",
+								"README.md has `## Usage` section with working code example",
 								"LICENSE file contains MIT license with current year",
 								"First commit exists with semantic message format",
 								"`git status` shows clean working tree",
@@ -692,6 +718,7 @@ export const PROJECT_TYPE_TASKS: Record<ProjectType, PhaseTemplate[]> = {
 							techDecisions: [
 								"Use MIT license for maximum open-source compatibility",
 								"Follow semantic commit convention from the start",
+								"Include Mermaid diagrams for visual documentation",
 							],
 						},
 						{

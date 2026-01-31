@@ -1025,8 +1025,11 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 					? summary.recentlyCompleted.map((s) => `  - ${s.id}: ${s.title}`).join("\n")
 					: "  - None yet";
 
+				const executorSlug = summary.projectSlug || "{project}";
+				const verifierSlug = summary.projectSlug || "{project}";
+
 				const nextAction = summary.nextSubtask
-					? `**Next Subtask**: ${summary.nextSubtask.id} - ${summary.nextSubtask.title}\n\nTo continue, use this prompt:\n\`\`\`\nPlease read CLAUDE.md and DEVELOPMENT_PLAN.md completely, then implement subtask [${summary.nextSubtask.id}], following all rules and marking checkboxes as you complete each item.\n\`\`\``
+					? `**Next Subtask**: ${summary.nextSubtask.id} - ${summary.nextSubtask.title}\n\nTo continue, use the executor agent:\n\`\`\`\nUse the ${executorSlug}-executor agent to execute subtask ${summary.nextSubtask.id}\n\`\`\`\n\nThe executor agent handles everything: reading context, implementing the subtask, running tests, and updating progress.`
 					: `**🎉 All subtasks complete!**
 
 ## ⚠️ IMPORTANT: Run the Verifier
@@ -1034,7 +1037,7 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 Before considering this project done, you MUST run the verifier agent:
 
 \`\`\`
-Use the {project}-verifier agent to validate the application against PROJECT_BRIEF.md
+Use the ${verifierSlug}-verifier agent to validate the application against PROJECT_BRIEF.md
 \`\`\`
 
 The verifier will:
@@ -1704,11 +1707,13 @@ ${markdown}
 
 ## Execution Prompt
 
-After adding the plan, execute the first subtask with:
+After adding the plan, use the executor agent to implement the first subtask:
 
 \`\`\`
-Please read CLAUDE.md and ${mode === "append" ? "DEVELOPMENT_PLAN.md" : "REMEDIATION_PLAN.md"} completely, then implement subtask ${task.subtasks[0].id}, following all rules and marking checkboxes as you complete each item.
-\`\`\``,
+Use the {project}-executor agent to execute subtask ${task.subtasks[0].id}
+\`\`\`
+
+The executor agent handles everything: reading context, implementing the subtask, running tests, and updating progress. Replace \`{project}\` with your project slug (e.g., \`my-app-executor\`).`,
 							},
 						],
 					};
@@ -2105,6 +2110,25 @@ Copy the content below and save it as \`workflow.md\` in your project. It will r
 ---
 
 ${markdown}`,
+						},
+					],
+				};
+			}
+		);
+
+		// DevPlan Implement - one-command kickoff to build the whole project
+		this.server.tool(
+			"devplan_implement",
+			"One-command kickoff to implement an entire development plan. Returns instructions for Claude Code to use the executor agent to build the project, then the verifier agent to validate it.",
+			{},
+			async () => {
+				this.updateActivity();
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: "Use the executor agent to implement the development plan, then use the verifier agent and report.",
 						},
 					],
 				};

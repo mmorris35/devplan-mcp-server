@@ -193,8 +193,10 @@ export function handleLanding(): Response {
       <p class="text-gray-400 text-center mb-8">One command. That's all it takes.</p>
       <div class="card rounded-xl p-8 max-w-2xl mx-auto">
         <pre class="text-green-400 mb-6"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user</code></pre>
-        <p class="text-gray-400 mb-4">Then start your first project:</p>
-        <pre class="text-blue-300"><code>You: "Use devplan_start to help me build a CLI tool"</code></pre>
+        <p class="text-gray-400 mb-4">Then use the executor agent to implement your plan:</p>
+        <pre class="text-blue-300 mb-6"><code>You: "Use the my-project-executor agent to execute subtask 0.1.1"</code></pre>
+        <p class="text-gray-400 mb-4">When it's done, use the verifier agent to check your work:</p>
+        <pre class="text-blue-300"><code>You: "Use the my-project-verifier agent to validate the application"</code></pre>
       </div>
     </section>
 
