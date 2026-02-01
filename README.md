@@ -164,6 +164,66 @@ gh issue view 123 --json number,title,body,labels,comments,url > issue.json
 "Use devplan_progress_summary to show me where we are"
 ```
 
+## Multi-Model Support
+
+DevPlan generates plans and agent files for multiple AI coding tools and models. Use the `target` parameter to generate outputs for your preferred tool.
+
+### Supported Targets
+
+| Target | Tool | Agent File | Best For |
+|--------|------|-----------|----------|
+| `claude` | Claude Code | `CLAUDE.md` | Claude Code IDE (default) |
+| `cursor` | Cursor IDE | `.cursorrules` | Cursor AI editor |
+| `aider` | Aider CLI | `.aider.conf.yml` | Terminal-based AI pair programming |
+| `cline` | VS Code Cline | `.cline/instructions.md` | VS Code extension |
+| `windsurf` | Windsurf IDE | `.windsurf/rules.md` | Codium's AI IDE |
+| `generic` | Any Model | `AGENTS.md` + files | Model-agnostic markdown format |
+
+### Using Targets
+
+When generating plans or agent files, specify the target tool:
+
+**Generate plan for Cursor:**
+```
+"Use devplan_generate_plan to create a plan, then I'll customize it for Cursor. Set target to 'cursor' for .cursorrules format"
+```
+
+**Generate executor for Aider:**
+```
+"Use devplan_generate_executor with target='aider' to create an Aider-compatible executor agent"
+```
+
+**Generate generic agent files:**
+```
+"Use devplan_generate_claude_md with target='generic' to create model-agnostic AGENTS.md files"
+```
+
+### How Targets Work
+
+Each target has a dedicated **adapter** that transforms the DevPlan methodology into the appropriate format:
+
+- **Claude** - Generates `CLAUDE.md` with executor/verifier agents in `.claude/agents/`
+- **Cursor** - Generates `.cursorrules` with all guidance in one file (Cursor doesn't support separate agents)
+- **Aider** - Generates `.aider.conf.yml` with architect mode instructions
+- **Cline** - Generates `.cline/instructions.md` with executor/verifier split
+- **Windsurf** - Generates `.windsurf/rules.md` with cascade-optimized format
+- **Generic** - Generates `AGENTS.md`, `EXECUTOR.md`, and `VERIFIER.md` for any tool
+
+### Examples
+
+**Start a new project for Cursor:**
+```
+"Use devplan_start to help me build a CLI tool, then generate the plan with target='cursor' for Cursor IDE"
+```
+
+**Add executor for specific target:**
+```
+"I have a development plan. Use devplan_generate_executor with target='aider' to create the executor agent for Aider"
+```
+
+**Compare adapter capabilities:**
+See [docs/ADAPTERS.md](/docs/ADAPTERS.md) for a detailed comparison of each target's capabilities and limitations.
+
 ## Tools
 
 ### Planning
