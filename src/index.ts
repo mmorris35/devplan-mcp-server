@@ -697,7 +697,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 			`Generate a DEVELOPMENT_PLAN.md scaffold. IMPORTANT: This outputs a SCAFFOLD, not a finished plan.
 
 REQUIRED WORKFLOW (you MUST follow this):
-1. Call this tool to get the scaffold
+1. Call this tool to get the scaffold, optionally specifying target (claude, cursor, aider, cline, windsurf, generic)
 2. ENHANCE the scaffold by:
    - Reading the project's existing codebase
    - Writing COMPLETE file contents for each subtask (no "Add to" instructions)
@@ -712,10 +712,12 @@ The user should NEVER see the raw scaffold - only the enhanced, validated plan.`
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
+				target: z.enum(["claude", "cursor", "aider", "cline", "windsurf", "generic"]).optional()
+					.describe("Target AI tool/model for agent file generation (default: claude)"),
 				min_severity: z.enum(["critical", "warning", "info"]).optional()
 					.describe("Minimum severity of lessons to include. 'critical' = only critical, 'warning' = critical + warning, 'info' = all (default)"),
 			},
-			async ({ brief_content, min_severity }) => {
+			async ({ brief_content, target = "claude", min_severity }) => {
 				this.updateActivity();
 				// Get lessons from KV first - they're used for both:
 				// 1. Injecting into subtask success criteria
@@ -749,12 +751,25 @@ The user should NEVER see the raw scaffold - only the enhanced, validated plan.`
 				}
 
 				// Generate plan with lessons injected into subtask success criteria
-				const plan = generatePlan(brief_content, lessons.length > 0 ? lessons : undefined);
+				let plan = generatePlan(brief_content, lessons.length > 0 ? lessons : undefined);
 
 				// Count how many subtasks got lesson-based criteria (approximate)
 				if (lessons.length > 0) {
 					const lessonMarkers = (plan.match(/\(from lesson:/g) || []).length;
 					injectedCount = lessonMarkers;
+				}
+
+				// Transform plan for target adapter if not claude
+				if (target && target !== "claude") {
+					const adapter = getAdapter(target as AdapterTarget);
+					const briefForAdapter = parseBrief(brief_content);
+					const config = {
+						target: target as AdapterTarget,
+						projectName: briefForAdapter.projectName,
+						language: briefForAdapter.mustUseTech?.[0] || "unknown",
+						testCoverage: 80,
+					};
+					plan = adapter.transformPhasePlan(plan, config);
 				}
 
 				// Insert safeguards section after "## How to Use This Plan" section
