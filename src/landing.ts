@@ -31,7 +31,7 @@ export function handleLanding(): Response {
         Build Projects <span class="gradient-text">Right the First Time</span>
       </h1>
       <p class="text-xl text-gray-300 mb-4 max-w-2xl mx-auto">
-        DevPlan supercharges Claude Code with structured planning, automatic validation, and lessons learned from every project.
+        DevPlan supercharges <strong>Claude Code, Cursor, Aider, Cline, and Windsurf</strong> with structured planning, automatic validation, and lessons learned from every project.
       </p>
       <p class="text-lg text-gray-400 mb-8">
         No more lost context. No more repeated mistakes. No more debugging AI-generated code for hours.
@@ -47,12 +47,12 @@ export function handleLanding(): Response {
     </div>
   </div>
 
-  <!-- Coming Soon Banner -->
+  <!-- Multi-Target Banner -->
   <div class="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-y border-purple-500/30">
     <div class="max-w-4xl mx-auto px-6 py-4 text-center">
       <p class="text-lg text-purple-200">
-        <span class="font-bold text-white">Coming Soon:</span> DevPlan MCP Server for other models!
-        <span class="text-gray-300">Cursor, Aider, Cline, Windsurf, and more.</span>
+        <span class="mr-2">🎯</span><span class="font-bold text-white">Works with Your Favorite AI Tool</span>
+        <span class="text-gray-300">— Claude Code • Cursor • Aider • Cline • Windsurf — same methodology, native integrations.</span>
       </p>
     </div>
   </div>
@@ -166,6 +166,11 @@ export function handleLanding(): Response {
           <h3 class="text-xl font-semibold text-white mb-2">As-Built Documentation</h3>
           <p class="text-gray-400">PROJECT_BRIEF.md and DEVELOPMENT_PLAN.md become permanent records. Return months later and understand every decision.</p>
         </div>
+        <div class="text-center">
+          <div class="benefit-icon mb-4">🔧</div>
+          <h3 class="text-xl font-semibold text-white mb-2">Works Everywhere</h3>
+          <p class="text-gray-400">Claude Code, Cursor, Aider, Cline, Windsurf — DevPlan generates native config files for each tool. Same methodology, your choice of editor.</p>
+        </div>
       </div>
     </section>
 
@@ -200,13 +205,31 @@ export function handleLanding(): Response {
     <!-- Install -->
     <section class="mb-20" id="install">
       <h2 class="text-3xl font-bold text-white text-center mb-4">Get Started in 30 Seconds</h2>
-      <p class="text-gray-400 text-center mb-8">One command. That's all it takes.</p>
-      <div class="card rounded-xl p-8 max-w-2xl mx-auto">
-        <pre class="text-green-400 mb-6"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user</code></pre>
-        <p class="text-gray-400 mb-4">Then use the executor agent to implement your plan:</p>
-        <pre class="text-blue-300 mb-6"><code>You: "Use the my-project-executor agent to execute subtask 0.1.1"</code></pre>
-        <p class="text-gray-400 mb-4">When it's done, use the verifier agent to check your work:</p>
-        <pre class="text-blue-300"><code>You: "Use the my-project-verifier agent to validate the application"</code></pre>
+      <p class="text-gray-400 text-center mb-8">Works with your favorite AI coding tool.</p>
+      <div class="card rounded-xl p-8 max-w-3xl mx-auto">
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-white mb-3">Claude Code</h3>
+          <pre class="text-green-400"><code>claude mcp add devplan --transport sse https://mcp.devplanmcp.store/sse --scope user</code></pre>
+        </div>
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-white mb-3">Cursor</h3>
+          <p class="text-gray-400 text-sm mb-2">Add to <code>.cursor/mcp.json</code>:</p>
+          <pre class="text-green-400"><code>{ "mcpServers": { "devplan": { "url": "https://mcp.devplanmcp.store/sse" } } }</code></pre>
+        </div>
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-white mb-3">Aider</h3>
+          <pre class="text-green-400"><code>aider --mcp-server https://mcp.devplanmcp.store/sse</code></pre>
+        </div>
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-white mb-3">Cline / Windsurf</h3>
+          <p class="text-gray-400 text-sm">Native MCP support — add <code>https://mcp.devplanmcp.store/sse</code> as an MCP server in settings.</p>
+        </div>
+        <div class="border-t border-gray-700 pt-6">
+          <p class="text-gray-400 mb-4">Then use the executor agent to implement your plan:</p>
+          <pre class="text-blue-300 mb-6"><code>You: "Use the my-project-executor agent to execute subtask 0.1.1"</code></pre>
+          <p class="text-gray-400 mb-4">When it's done, use the verifier agent to check your work:</p>
+          <pre class="text-blue-300"><code>You: "Use the my-project-verifier agent to validate the application"</code></pre>
+        </div>
       </div>
     </section>
 
@@ -236,8 +259,7 @@ export function handleLanding(): Response {
         <a href="https://github.com/mmorris35/ClaudeCode-DevPlanBuilder" class="text-blue-400 hover:text-blue-300" target="_blank">Methodology</a>
       </div>
       <p class="text-gray-500 text-sm">
-        Built for <a href="https://claude.ai/code" class="text-gray-400 hover:text-gray-300">Claude Code</a>
-        using the <a href="https://modelcontextprotocol.io" class="text-gray-400 hover:text-gray-300">Model Context Protocol</a>
+        Built for AI coding tools using the <a href="https://modelcontextprotocol.io" class="text-gray-400 hover:text-gray-300">Model Context Protocol</a>
       </p>
     </section>
   </div>
