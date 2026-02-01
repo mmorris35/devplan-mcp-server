@@ -1,0 +1,12 @@
+# .gitignore
+node_modules/
+dist/
+*.js
+*.js.map
+*.d.ts
+!jest.config.js
+!eslint.config.js
+coverage/
+.env
+.DS_Store
+*.log
