@@ -6,6 +6,7 @@ import {
 	listNativeTargets,
 	claudeAdapter,
 	cursorAdapter,
+	aiderAdapter,
 	type AdapterTarget,
 	type AdapterConfig,
 } from "../adapters";
@@ -180,6 +181,138 @@ describe("adapters", () => {
 		});
 	});
 
+	describe("AiderAdapter", () => {
+		const testBrief = `# Project Brief: Test Project
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Project Name** | test-project |
+| **Project Type** | cli |
+| **Goal** | Test the aider adapter |
+| **Timeline** | 1 week |
+
+## Target Users
+
+- Developers
+
+## Features
+
+### Must-Have (MVP)
+
+1. **Test Feature** - A test feature
+`;
+
+		const testConfig: AdapterConfig = {
+			target: "aider",
+			projectName: "test-project",
+			language: "typescript",
+			testCoverage: 80,
+		};
+
+		it("should have correct target identifier", () => {
+			expect(aiderAdapter.target).toBe("aider");
+		});
+
+		it("should have correct display name", () => {
+			expect(aiderAdapter.displayName).toBe("Aider AI Pair Programmer");
+		});
+
+		it("should use .yml file extension", () => {
+			expect(aiderAdapter.agentFileExtension).toBe(".yml");
+		});
+
+		it("should not support executor agents", () => {
+			expect(aiderAdapter.supportsExecutor).toBe(false);
+		});
+
+		it("should not support verifier agents", () => {
+			expect(aiderAdapter.supportsVerifier).toBe(false);
+		});
+
+		it("should generate agent file with .aider.conf.yml path", () => {
+			const result = aiderAdapter.generateAgentFile(testBrief, testConfig);
+			expect(result.path).toBe(".aider.conf.yml");
+			expect(result.isPrimary).toBe(true);
+			expect(result.content).toContain("architect:");
+			expect(result.content).toContain("true");
+		});
+
+		it("should include YAML configuration keys", () => {
+			const result = aiderAdapter.generateAgentFile(testBrief, testConfig);
+			expect(result.content).toContain("architect:");
+			expect(result.content).toContain("auto-commits:");
+			expect(result.content).toContain("model:");
+			expect(result.content).toContain("read-only-files:");
+			expect(result.content).toContain("ignore-patterns:");
+		});
+
+		it("should return null for executor agent", () => {
+			const result = aiderAdapter.generateExecutorAgent(testBrief, testConfig);
+			expect(result).toBeNull();
+		});
+
+		it("should return null for verifier agent", () => {
+			const result = aiderAdapter.generateVerifierAgent(testBrief, testConfig);
+			expect(result).toBeNull();
+		});
+
+		it("should include rules section with language-specific guidance", () => {
+			const result = aiderAdapter.generateAgentFile(testBrief, testConfig);
+			expect(result.content).toContain("rules:");
+			expect(result.content).toContain("- Read DEVELOPMENT_PLAN.md");
+			// TypeScript specific
+			expect(result.content).toContain("strict mode");
+		});
+
+		it("should generate Python-specific rules when language is python", () => {
+			const pythonConfig = { ...testConfig, language: "python" };
+			const result = aiderAdapter.generateAgentFile(testBrief, pythonConfig);
+			expect(result.content).toContain("PEP 8");
+			expect(result.content).toContain("type hints");
+		});
+
+		it("should generate Rust-specific rules when language is rust", () => {
+			const rustConfig = { ...testConfig, language: "rust" };
+			const result = aiderAdapter.generateAgentFile(testBrief, rustConfig);
+			expect(result.content).toContain("Rust naming conventions");
+			expect(result.content).toContain("Result");
+		});
+
+		it("should transform phase plan to Aider comment format", () => {
+			const plan = `## Phase 1: Setup
+
+### Subtask 1.1.1: Initialize project
+
+- [ ] Create src/ directory
+- [ ] Create package.json`;
+			const result = aiderAdapter.transformPhasePlan(plan, testConfig);
+			expect(result).toContain("# Phase 1: Setup");
+			expect(result).toContain("# Subtask 1.1.1");
+			expect(result).toContain("- Create src/");
+		});
+
+		it("should return plan-related instructions", () => {
+			const instructions = aiderAdapter.getPlanInstructions();
+			expect(instructions).toContain("Aider");
+			expect(instructions).toContain(".aider.conf.yml");
+			expect(instructions).toContain("/architect");
+			expect(instructions).toContain("aider");
+		});
+
+		it("should include project information in header", () => {
+			const result = aiderAdapter.generateAgentFile(testBrief, testConfig);
+			expect(result.content).toContain("Project: test-project");
+			expect(result.content).toContain("Language: Typescript");
+		});
+
+		it("should set correct model in config", () => {
+			const result = aiderAdapter.generateAgentFile(testBrief, testConfig);
+			expect(result.content).toContain("model: claude-3-5-sonnet-20241022");
+		});
+	});
+
 	describe("getAdapter", () => {
 		it("should return claude adapter by default", () => {
 			const adapter = getAdapter();
@@ -196,8 +329,13 @@ describe("adapters", () => {
 			expect(adapter.target).toBe("cursor");
 		});
 
+		it("should return aider adapter for 'aider' target", () => {
+			const adapter = getAdapter("aider");
+			expect(adapter.target).toBe("aider");
+		});
+
 		it("should fall back to claude for unimplemented targets", () => {
-			const targets: AdapterTarget[] = ["aider", "cline", "windsurf", "generic"];
+			const targets: AdapterTarget[] = ["cline", "windsurf", "generic"];
 			for (const target of targets) {
 				const adapter = getAdapter(target);
 				// These fall back to claude
@@ -216,8 +354,11 @@ describe("adapters", () => {
 			expect(hasNativeAdapter("cursor")).toBe(true);
 		});
 
+		it("should return true for aider", () => {
+			expect(hasNativeAdapter("aider")).toBe(true);
+		});
+
 		it("should return false for unimplemented adapters", () => {
-			expect(hasNativeAdapter("aider")).toBe(false);
 			expect(hasNativeAdapter("cline")).toBe(false);
 			expect(hasNativeAdapter("windsurf")).toBe(false);
 			expect(hasNativeAdapter("generic")).toBe(false);
@@ -238,11 +379,12 @@ describe("adapters", () => {
 	});
 
 	describe("listNativeTargets", () => {
-		it("should return claude and cursor after Phase 6", () => {
+		it("should return claude, cursor, and aider after Phase 7", () => {
 			const native = listNativeTargets();
-			expect(native).toHaveLength(2);
+			expect(native).toHaveLength(3);
 			expect(native).toContain("claude");
 			expect(native).toContain("cursor");
+			expect(native).toContain("aider");
 		});
 	});
 });
