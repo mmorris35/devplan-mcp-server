@@ -1,0 +1,241 @@
+{
+  "nodes": [
+    {
+      "id": "phase-0",
+      "type": "phase",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Phase 0: Foundation",
+        "description": "Set up repository and project structure",
+        "status": "in_progress",
+        "planId": "0",
+        "duration": "1 session"
+      }
+    },
+    {
+      "id": "task-0.1",
+      "type": "task",
+      "position": {
+        "x": 50,
+        "y": 100
+      },
+      "parentNode": "phase-0",
+      "data": {
+        "label": "Task 0.1: Project Setup",
+        "status": "in_progress",
+        "planId": "0.1"
+      }
+    },
+    {
+      "id": "subtask-0.1.1",
+      "type": "subtask",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "parentNode": "task-0.1",
+      "data": {
+        "label": "0.1.1: Initialize project with package.json and tsconfig.json (Single Session)",
+        "description": "**Prerequisites**:\n- None (first subtask)",
+        "status": "completed",
+        "planId": "0.1.1"
+      }
+    },
+    {
+      "id": "subtask-0.1.2",
+      "type": "subtask",
+      "position": {
+        "x": 100,
+        "y": 300
+      },
+      "parentNode": "task-0.1",
+      "data": {
+        "label": "0.1.2: Add linting and testing infrastructure (Single Session)",
+        "description": "**Prerequisites**:\n- [x] 0.1.1: Initialize project with package.json and tsconfig.json",
+        "status": "pending",
+        "planId": "0.1.2"
+      }
+    },
+    {
+      "id": "phase-1",
+      "type": "phase",
+      "position": {
+        "x": 0,
+        "y": 340
+      },
+      "data": {
+        "label": "Phase 1: Core CLI Structure",
+        "description": "Create the rock state module and CLI entry point",
+        "status": "in_progress",
+        "planId": "1",
+        "duration": "1 session"
+      }
+    },
+    {
+      "id": "task-1.1",
+      "type": "task",
+      "position": {
+        "x": 50,
+        "y": 440
+      },
+      "parentNode": "phase-1",
+      "data": {
+        "label": "Task 1.1: Rock Module and CLI",
+        "status": "in_progress",
+        "planId": "1.1"
+      }
+    },
+    {
+      "id": "subtask-1.1.1",
+      "type": "subtask",
+      "position": {
+        "x": 100,
+        "y": 540
+      },
+      "parentNode": "task-1.1",
+      "data": {
+        "label": "1.1.1: Create rock state module (Single Session)",
+        "description": "**Prerequisites**:\n- [x] 0.1.2: Add linting and testing infrastructure",
+        "status": "completed",
+        "planId": "1.1.1"
+      }
+    },
+    {
+      "id": "subtask-1.1.2",
+      "type": "subtask",
+      "position": {
+        "x": 100,
+        "y": 640
+      },
+      "parentNode": "task-1.1",
+      "data": {
+        "label": "1.1.2: Create CLI entry point with Commander.js (Single Session)",
+        "description": "**Prerequisites**:\n- [x] 1.1.1: Create rock state module",
+        "status": "pending",
+        "planId": "1.1.2"
+      }
+    },
+    {
+      "id": "phase-2",
+      "type": "phase",
+      "position": {
+        "x": 0,
+        "y": 680
+      },
+      "data": {
+        "label": "Phase 2: Rock Commands Testing",
+        "description": "Add comprehensive tests for all CLI commands",
+        "status": "pending",
+        "planId": "2",
+        "duration": "1 session"
+      }
+    },
+    {
+      "id": "task-2.1",
+      "type": "task",
+      "position": {
+        "x": 50,
+        "y": 780
+      },
+      "parentNode": "phase-2",
+      "data": {
+        "label": "Task 2.1: Command Tests",
+        "status": "pending",
+        "planId": "2.1"
+      }
+    },
+    {
+      "id": "subtask-2.1.1",
+      "type": "subtask",
+      "position": {
+        "x": 100,
+        "y": 880
+      },
+      "parentNode": "task-2.1",
+      "data": {
+        "label": "2.1.1: Add comprehensive CLI tests (Single Session)",
+        "description": "**Prerequisites**:\n- [x] 1.1.2: Create CLI entry point with Commander.js",
+        "status": "pending",
+        "planId": "2.1.1"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-0.1.1-to-0.1.2",
+      "source": "subtask-0.1.1",
+      "target": "subtask-0.1.2",
+      "type": "smoothstep",
+      "animated": false,
+      "style": {
+        "stroke": "#22c55e"
+      }
+    },
+    {
+      "id": "edge-0.1.2-to-1.1.1",
+      "source": "subtask-0.1.2",
+      "target": "subtask-1.1.1",
+      "type": "smoothstep",
+      "animated": true,
+      "style": {
+        "stroke": "#6b7280"
+      }
+    },
+    {
+      "id": "edge-1.1.1-to-1.1.2",
+      "source": "subtask-1.1.1",
+      "target": "subtask-1.1.2",
+      "type": "smoothstep",
+      "animated": false,
+      "style": {
+        "stroke": "#22c55e"
+      }
+    },
+    {
+      "id": "edge-1.1.2-to-2.1.1",
+      "source": "subtask-1.1.2",
+      "target": "subtask-2.1.1",
+      "type": "smoothstep",
+      "animated": true,
+      "style": {
+        "stroke": "#6b7280"
+      }
+    },
+    {
+      "id": "edge-phase-0-to-1",
+      "source": "phase-0",
+      "target": "phase-1",
+      "type": "smoothstep",
+      "style": {
+        "stroke": "#3b82f6",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "id": "edge-phase-1-to-2",
+      "source": "phase-1",
+      "target": "phase-2",
+      "type": "smoothstep",
+      "style": {
+        "stroke": "#3b82f6",
+        "strokeWidth": 2
+      }
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "metadata": {
+    "planName": "pet-rock-cli",
+    "exportedAt": "2026-01-23T22:33:34.141Z",
+    "version": "1.0.0",
+    "platform": "sim",
+    "nodeCount": 11,
+    "edgeCount": 6
+  }
+}

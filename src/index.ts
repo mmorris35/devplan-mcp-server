@@ -71,6 +71,7 @@ import {
 	generateRemediationTask,
 	formatRemediationPlan,
 } from "./generators";
+import { getAdapter, type AdapterTarget } from "./adapters";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
 import { exportWorkflow, exportMermaid } from "./workflow-export";
 
@@ -696,7 +697,7 @@ You can use devplan_generate_plan as a starting point, but you MUST enhance it t
 			`Generate a DEVELOPMENT_PLAN.md scaffold. IMPORTANT: This outputs a SCAFFOLD, not a finished plan.
 
 REQUIRED WORKFLOW (you MUST follow this):
-1. Call this tool to get the scaffold
+1. Call this tool to get the scaffold, optionally specifying target (claude, cursor, aider, cline, windsurf, generic)
 2. ENHANCE the scaffold by:
    - Reading the project's existing codebase
    - Writing COMPLETE file contents for each subtask (no "Add to" instructions)
@@ -711,10 +712,12 @@ The user should NEVER see the raw scaffold - only the enhanced, validated plan.`
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				template: z.string().optional().describe("Template override"),
+				target: z.enum(["claude", "cursor", "aider", "cline", "windsurf", "generic"]).optional()
+					.describe("Target AI tool/model for agent file generation (default: claude)"),
 				min_severity: z.enum(["critical", "warning", "info"]).optional()
 					.describe("Minimum severity of lessons to include. 'critical' = only critical, 'warning' = critical + warning, 'info' = all (default)"),
 			},
-			async ({ brief_content, min_severity }) => {
+			async ({ brief_content, target = "claude", min_severity }) => {
 				this.updateActivity();
 				// Get lessons from KV first - they're used for both:
 				// 1. Injecting into subtask success criteria
@@ -748,12 +751,25 @@ The user should NEVER see the raw scaffold - only the enhanced, validated plan.`
 				}
 
 				// Generate plan with lessons injected into subtask success criteria
-				const plan = generatePlan(brief_content, lessons.length > 0 ? lessons : undefined);
+				let plan = generatePlan(brief_content, lessons.length > 0 ? lessons : undefined);
 
 				// Count how many subtasks got lesson-based criteria (approximate)
 				if (lessons.length > 0) {
 					const lessonMarkers = (plan.match(/\(from lesson:/g) || []).length;
 					injectedCount = lessonMarkers;
+				}
+
+				// Transform plan for target adapter if not claude
+				if (target && target !== "claude") {
+					const adapter = getAdapter(target as AdapterTarget);
+					const briefForAdapter = parseBrief(brief_content);
+					const config = {
+						target: target as AdapterTarget,
+						projectName: briefForAdapter.projectName,
+						language: briefForAdapter.mustUseTech?.[0] || "unknown",
+						testCoverage: 80,
+					};
+					plan = adapter.transformPhasePlan(plan, config);
 				}
 
 				// Insert safeguards section after "## How to Use This Plan" section
@@ -820,20 +836,31 @@ NEXT STEP: Enhance this plan, then call devplan_validate_haiku_executable to ver
 		// Tool 5: devplan_generate_claude_md
 		this.server.tool(
 			"devplan_generate_claude_md",
-			"Generate a CLAUDE.md scaffold with project rules and session checklists. Use this as a starting point, then enhance it to match https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md",
+			"Generate a CLAUDE.md scaffold (or equivalent for other targets like .cursorrules). Use this as a starting point, then enhance it.",
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md or JSON brief"),
 				language: z.string().default("python").describe("Primary language"),
 				test_coverage: z.number().default(80).describe("Required coverage percentage"),
+				target: z
+					.enum(["claude", "cursor", "aider", "cline", "windsurf", "generic"])
+					.default("claude")
+					.describe("Target tool (claude, cursor, aider, cline, windsurf, generic)"),
 			},
-			async ({ brief_content, language, test_coverage }) => {
+			async ({ brief_content, language, test_coverage, target }) => {
 				this.updateActivity();
-				const claudeMd = generateClaudeMd(brief_content, language, test_coverage);
+				const adapter = getAdapter(target as AdapterTarget);
+				const config = {
+					target: target as AdapterTarget,
+					projectName: "project", // Will be extracted from brief by adapter
+					language,
+					testCoverage: test_coverage,
+				};
+				const result = adapter.generateAgentFile(brief_content, config);
 				return {
 					content: [
 						{
 							type: "text",
-							text: `ACTION REQUIRED: Write the following content to CLAUDE.md in the project root:\n\n${claudeMd}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality and structure of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md\n\nKey things to verify/add:\n- All 10 numbered sections present\n- Session checklists (Starting/Ending) with specific items\n- Git conventions with branch naming patterns\n- Code standards specific to the project language\n- Testing requirements with coverage thresholds\n- Completion notes template with line count tracking\n\nNEXT STEP: Create the executor agent using devplan_generate_executor`,
+							text: `ACTION REQUIRED: Write the following content to ${result.path} in the project root:\n\n${result.content}\n\n---\nGenerated for target: ${adapter.displayName}\n\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality and structure of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/CLAUDE.md\n\nKey things to verify/add:\n- All 10 numbered sections present\n- Session checklists (Starting/Ending) with specific items\n- Git conventions with branch naming patterns\n- Code standards specific to the project language\n- Testing requirements with coverage thresholds\n- Completion notes template with line count tracking\n\nNEXT STEP: Create the executor agent using devplan_generate_executor`,
 						},
 					],
 				};
@@ -930,10 +957,32 @@ NEXT STEP: Enhance this plan, then call devplan_validate_haiku_executable to ver
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md content or JSON brief"),
 				language: z.string().default("python").describe("Primary language (python or typescript)"),
+				target: z
+					.enum(["claude", "cursor", "aider", "cline", "windsurf", "generic"])
+					.default("claude")
+					.describe("Target tool (default: claude)"),
 			},
-			async ({ brief_content, language }) => {
+			async ({ brief_content, language, target }) => {
 				this.updateActivity();
-				const { content, filePath } = generateExecutorAgent(brief_content, language);
+				const adapter = getAdapter(target as AdapterTarget);
+				const config = {
+					target: target as AdapterTarget,
+					projectName: "project",
+					language,
+					testCoverage: 80,
+				};
+				const result = adapter.generateExecutorAgent(brief_content, config);
+				if (!result) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `The ${adapter.displayName} adapter does not support executor agents. Use the generic adapter or Claude adapter instead.`,
+							},
+						],
+					};
+				}
+				const { content, path: filePath } = result;
 				return {
 					content: [
 						{
@@ -971,10 +1020,32 @@ See https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/d
 			{
 				brief_content: z.string().describe("PROJECT_BRIEF.md content or JSON brief"),
 				language: z.string().default("python").describe("Primary language (python or typescript)"),
+				target: z
+					.enum(["claude", "cursor", "aider", "cline", "windsurf", "generic"])
+					.default("claude")
+					.describe("Target tool (default: claude)"),
 			},
-			async ({ brief_content, language }) => {
+			async ({ brief_content, language, target }) => {
 				this.updateActivity();
-				const { content, filePath } = generateVerifierAgent(brief_content, language);
+				const adapter = getAdapter(target as AdapterTarget);
+				const config = {
+					target: target as AdapterTarget,
+					projectName: "project",
+					language,
+					testCoverage: 80,
+				};
+				const result = adapter.generateVerifierAgent(brief_content, config);
+				if (!result) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `The ${adapter.displayName} adapter does not support verifier agents. Use the generic adapter or Claude adapter instead.`,
+							},
+						],
+					};
+				}
+				const { content, path: filePath } = result;
 				return {
 					content: [
 						{

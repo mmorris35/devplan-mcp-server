@@ -47,7 +47,17 @@ export function handleLanding(): Response {
     </div>
   </div>
 
-  <div class="max-w-5xl mx-auto px-6 pb-20">
+  <!-- Coming Soon Banner -->
+  <div class="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-y border-purple-500/30">
+    <div class="max-w-4xl mx-auto px-6 py-4 text-center">
+      <p class="text-lg text-purple-200">
+        <span class="font-bold text-white">Coming Soon:</span> DevPlan MCP Server for other models!
+        <span class="text-gray-300">Cursor, Aider, Cline, Windsurf, and more.</span>
+      </p>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto px-6 pb-20 pt-8">
     <!-- Problem/Solution -->
     <section class="mb-20">
       <div class="grid md:grid-cols-2 gap-8">
