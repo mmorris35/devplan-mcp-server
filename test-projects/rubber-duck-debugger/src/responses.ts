@@ -5,7 +5,7 @@
  * Real duck sounds are more like "WACK" or aggressive hissing.
  */
 
-import type { DuckMood } from './types';
+import type { DuckMood } from './types.js';
 
 /** Quack variations - technically more accurate duck sounds */
 export const QUACK_SOUNDS = [

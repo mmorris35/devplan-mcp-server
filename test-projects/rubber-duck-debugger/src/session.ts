@@ -3,8 +3,8 @@
  * Session manager for rubber duck debugging sessions.
  */
 
-import type { SessionStats } from './types';
-import { Duck } from './duck';
+import type { SessionStats } from './types.js';
+import { Duck } from './duck.js';
 
 export class Session {
   private duck: Duck;

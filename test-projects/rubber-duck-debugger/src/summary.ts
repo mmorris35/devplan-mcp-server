@@ -3,9 +3,9 @@
  * Session summary generator - roasts the user's debugging skills.
  */
 
-import type { SessionStats } from './types';
-import { MOOD_EMOJI } from './types';
-import { calculateRating, analyzeMoodTrajectory, formatDurationSnarky } from './stats';
+import type { SessionStats } from './types.js';
+import { MOOD_EMOJI } from './types.js';
+import { calculateRating, analyzeMoodTrajectory, formatDurationSnarky } from './stats.js';
 
 /**
  * Generate the full session summary.

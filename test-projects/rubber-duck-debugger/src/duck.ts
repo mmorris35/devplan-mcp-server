@@ -3,11 +3,11 @@
  * The Duck - combines mood, responses, and advice into one sarcastic companion.
  */
 
-import type { DuckMood, QuackResponse, DuckConfig } from './types';
-import { DEFAULT_CONFIG } from './types';
-import { MoodEngine } from './mood';
-import { formatResponse } from './responses';
-import { getAdviceByAnnoyance } from './advice';
+import type { DuckMood, QuackResponse, DuckConfig } from './types.js';
+import { DEFAULT_CONFIG } from './types.js';
+import { MoodEngine } from './mood.js';
+import { formatResponse } from './responses.js';
+import { getAdviceByAnnoyance } from './advice.js';
 
 export class Duck {
   private mood: MoodEngine;

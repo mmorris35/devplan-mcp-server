@@ -3,7 +3,7 @@
  * Session statistics analysis.
  */
 
-import type { SessionStats, DuckMood } from './types';
+import type { SessionStats, DuckMood } from './types.js';
 
 /** Rating out of 10 based on session */
 export interface DebuggingRating {

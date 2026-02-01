@@ -4,8 +4,8 @@
  */
 
 import * as readline from 'readline';
-import { Session } from './session';
-import { generateSummary } from './summary';
+import { Session } from './session.js';
+import { generateSummary } from './summary.js';
 
 /**
  * Play terminal bell sound.

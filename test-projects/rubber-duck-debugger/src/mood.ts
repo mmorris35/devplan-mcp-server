@@ -4,8 +4,8 @@
  * The duck gets progressively more annoyed the longer you talk to it.
  */
 
-import type { DuckMood } from './types';
-import { MOOD_EMOJI, MOOD_DESCRIPTIONS } from './types';
+import type { DuckMood } from './types.js';
+import { MOOD_EMOJI, MOOD_DESCRIPTIONS } from './types.js';
 
 /** Mood progression order */
 const MOOD_ORDER: DuckMood[] = [
