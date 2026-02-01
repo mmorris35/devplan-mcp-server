@@ -5,6 +5,7 @@
 
 import * as readline from 'readline';
 import { Session } from './session';
+import { generateSummary } from './summary';
 
 /**
  * Play terminal bell sound.
@@ -81,18 +82,11 @@ export async function startREPL(): Promise<void> {
 }
 
 /**
- * Print session summary (placeholder - will be enhanced in Phase 4).
+ * Print session summary.
  */
 function printSummary(session: Session): void {
   const stats = session.getStats();
-
-  console.log();
-  console.log('═══════════════════════════════════════');
-  printColored('🦆 SESSION SUMMARY', 'yellow');
-  console.log('═══════════════════════════════════════');
-  console.log(`Duration: ${session.getDurationString()}`);
-  console.log(`Messages: ${stats.messageCount}`);
-  console.log(`Final Mood: ${stats.moodHistory[stats.moodHistory.length - 1]}`);
-  console.log('═══════════════════════════════════════');
-  console.log();
+  const durationMs = session.getDuration();
+  const summary = generateSummary(stats, durationMs);
+  console.log(summary);
 }
