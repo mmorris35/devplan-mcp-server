@@ -57,3 +57,30 @@ new_sqlite_classes = ["DevPlanMCP"]
 #                      Create at: https://dash.cloudflare.com/profile/api-tokens
 # CF_ZONE_ID         - Zone ID for devplanmcp.store
 # CF_ACCOUNT_ID      - Account ID (optional, for Workers analytics fallback)
+
+# =============================================================================
+# Staging Environment
+# =============================================================================
+[env.staging]
+workers_dev = true  # Deploy to workers.dev subdomain only (no custom domain)
+
+[env.staging.vars]
+AUTH_ENABLED = "false"
+FREE_TIER_LIMIT = "100"
+SESSION_INACTIVITY_TTL_DAYS = "1"
+SESSION_ABSOLUTE_TTL_DAYS = "7"
+CLEANUP_CHECK_HOURS = "1"
+ENVIRONMENT = "staging"
+
+[[env.staging.kv_namespaces]]
+binding = "DEVPLAN_KV"
+id = "0fb386b51fb74e7d89b606c313410a8f"
+
+[[env.staging.durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "DevPlanMCP"
+
+# Fresh migrations for staging (no delete needed - new worker)
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["DevPlanMCP"]
