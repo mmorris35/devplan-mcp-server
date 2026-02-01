@@ -9,12 +9,18 @@ import type { AdapterTarget, OutputAdapter } from "./types";
 import { claudeAdapter } from "./claude";
 import { cursorAdapter } from "./cursor";
 import { aiderAdapter } from "./aider";
+import { clineAdapter } from "./cline";
+import { windsurfAdapter } from "./windsurf";
+import { genericAdapter } from "./generic";
 
 // Re-export all types
 export * from "./types";
 export { claudeAdapter } from "./claude";
 export { cursorAdapter } from "./cursor";
 export { aiderAdapter } from "./aider";
+export { clineAdapter } from "./cline";
+export { windsurfAdapter } from "./windsurf";
+export { genericAdapter } from "./generic";
 
 /**
  * Registry of all available adapters.
@@ -24,16 +30,16 @@ const ADAPTERS: Record<AdapterTarget, OutputAdapter> = {
 	claude: claudeAdapter,
 	cursor: cursorAdapter,
 	aider: aiderAdapter,
-	cline: claudeAdapter, // TODO: Replace with ClineAdapter in Phase 8
-	windsurf: claudeAdapter, // TODO: Replace with WindsurfAdapter in Phase 8
-	generic: claudeAdapter, // TODO: Replace with GenericAdapter in Phase 8
+	cline: clineAdapter,
+	windsurf: windsurfAdapter,
+	generic: genericAdapter,
 };
 
 /**
  * Set of targets that have native (non-fallback) adapter implementations.
  * Updated as new adapters are added.
  */
-const NATIVE_ADAPTERS = new Set<AdapterTarget>(["claude", "cursor", "aider"]);
+const NATIVE_ADAPTERS = new Set<AdapterTarget>(["claude", "cursor", "aider", "cline", "windsurf", "generic"]);
 
 /**
  * Get the adapter for a target tool.
