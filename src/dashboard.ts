@@ -106,7 +106,8 @@ export async function handleDashboardAPI(env: DashboardEnv): Promise<Response> {
 export async function handleDashboard(request: Request, env: DashboardEnv): Promise<Response> {
 	const data = await fetchCloudflareAnalytics(env);
 
-	const chartLabels = data.dailyData.map((d) => d.date.slice(5));
+	// Pass full ISO dates to frontend for client-side timezone conversion
+	const chartDates = data.dailyData.map((d) => d.date);
 	const chartVisitors = data.dailyData.map((d) => d.uniqueVisitors);
 	const chartRequests = data.dailyData.map((d) => d.requests);
 
@@ -208,7 +209,7 @@ export async function handleDashboard(request: Request, env: DashboardEnv): Prom
     </div>
 
     <footer class="mt-8 text-center text-gray-500 text-sm">
-      <p>Last updated: ${isConfigured ? new Date(data.lastUpdated).toLocaleString() : "N/A"}</p>
+      <p>Last updated: <span id="lastUpdated">${isConfigured ? data.lastUpdated : "N/A"}</span></p>
       <p class="mt-1 text-xs">Data from Cloudflare Zone Analytics</p>
       <p class="mt-2">
         <a href="/" class="text-blue-400 hover:text-blue-300">API Status</a>
@@ -219,11 +220,19 @@ export async function handleDashboard(request: Request, env: DashboardEnv): Prom
   </div>
 
   <script>
+    // Convert UTC dates to local timezone for display
+    const utcDates = ${JSON.stringify(chartDates)};
+    const chartLabels = utcDates.map(d => {
+      const date = new Date(d + 'T00:00:00Z'); // Parse as UTC
+      return (date.getMonth() + 1).toString().padStart(2, '0') + '-' + 
+             date.getDate().toString().padStart(2, '0');
+    });
+    
     const ctx = document.getElementById('trafficChart').getContext('2d');
     new Chart(ctx, {
       type: 'line',
       data: {
-        labels: ${JSON.stringify(chartLabels)},
+        labels: chartLabels,
         datasets: [
           {
             label: 'Unique Visitors',
@@ -304,6 +313,17 @@ export async function handleDashboard(request: Request, env: DashboardEnv): Prom
         }
       }
     });
+    
+    // Format last updated timestamp in client timezone
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    if (lastUpdatedEl && lastUpdatedEl.textContent !== 'N/A') {
+      const timestamp = lastUpdatedEl.textContent;
+      try {
+        lastUpdatedEl.textContent = new Date(timestamp).toLocaleString();
+      } catch (e) {
+        // Keep original if parsing fails
+      }
+    }
   </script>
 </body>
 </html>`;
