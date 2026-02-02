@@ -241,19 +241,71 @@ export function handleLanding(): Response {
       </div>
     </section>
 
-    <!-- Testimonial CTA -->
-    <section class="mb-20">
-      <div class="card rounded-xl p-8 text-center border border-purple-500/30">
-        <div class="text-4xl mb-4">💬</div>
-        <h3 class="text-2xl font-bold text-white mb-3">Love DevPlan?</h3>
-        <p class="text-gray-400 mb-6 max-w-lg mx-auto">
-          Share your experience! Your testimonial helps other developers discover better ways to work with AI.
-        </p>
-        <a href="https://forms.gle/Fjh9EvNJ9p3jMufw8" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition inline-block">
-          Share Your Story →
-        </a>
+    <!-- Testimonial Form -->
+    <section class="mb-20" id="testimonial">
+      <div class="card rounded-xl p-8 border border-purple-500/30">
+        <div class="text-center mb-8">
+          <div class="text-4xl mb-4">💬</div>
+          <h3 class="text-2xl font-bold text-white mb-3">Love DevPlan?</h3>
+          <p class="text-gray-400 max-w-lg mx-auto">
+            Share your experience! Your testimonial helps other developers discover better ways to work with AI.
+          </p>
+        </div>
+        <form id="testimonial-form" class="max-w-xl mx-auto space-y-6">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Name or Nickname</label>
+            <input type="text" id="name" name="entry.2051456297" required
+              class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition"
+              placeholder="Your name, handle, or favorite igneous rock...">
+          </div>
+          <div>
+            <label for="testimonial" class="block text-sm font-medium text-gray-300 mb-2">Your Experience</label>
+            <textarea id="testimonial" name="entry.1732259482" required rows="4"
+              class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition resize-none"
+              placeholder="How has DevPlan helped you? What do you like about it?"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">May we feature your testimonial on this page?</label>
+            <div class="flex gap-6">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="entry.49694324" value="Yes" required class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
+                <span class="text-gray-300">Yes</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="entry.49694324" value="No" class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
+                <span class="text-gray-300">No</span>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+            Share Your Story →
+          </button>
+        </form>
+        <div id="testimonial-thanks" class="hidden text-center py-8">
+          <div class="text-4xl mb-4">🙏</div>
+          <h3 class="text-2xl font-bold text-white mb-2">Thank you!</h3>
+          <p class="text-gray-400">Your testimonial means a lot. We appreciate you taking the time to share your experience.</p>
+        </div>
       </div>
     </section>
+    <script>
+      document.getElementById('testimonial-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        fetch('https://docs.google.com/forms/d/e/1FAIpQLSdge_JLhEze0nALzv9xnKqEtM9kWOLkN-w-VArwgPGesu08jg/formResponse', {
+          method: 'POST',
+          body: formData,
+          mode: 'no-cors'
+        }).then(() => {
+          form.classList.add('hidden');
+          document.getElementById('testimonial-thanks').classList.remove('hidden');
+        }).catch(() => {
+          form.classList.add('hidden');
+          document.getElementById('testimonial-thanks').classList.remove('hidden');
+        });
+      });
+    </script>
 
     <!-- CTA -->
     <section class="text-center mb-16">
