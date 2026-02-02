@@ -241,6 +241,20 @@ export function handleLanding(): Response {
       </div>
     </section>
 
+    <!-- Testimonial CTA -->
+    <section class="mb-20">
+      <div class="card rounded-xl p-8 text-center border border-purple-500/30">
+        <div class="text-4xl mb-4">💬</div>
+        <h3 class="text-2xl font-bold text-white mb-3">Love DevPlan?</h3>
+        <p class="text-gray-400 mb-6 max-w-lg mx-auto">
+          Share your experience! Your testimonial helps other developers discover better ways to work with AI.
+        </p>
+        <a href="https://forms.gle/Fjh9EvNJ9p3jMufw8" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition inline-block">
+          Share Your Story →
+        </a>
+      </div>
+    </section>
+
     <!-- CTA -->
     <section class="text-center mb-16">
       <h2 class="text-3xl font-bold text-white mb-4">Ready to Build Better?</h2>
