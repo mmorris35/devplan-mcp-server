@@ -778,8 +778,26 @@ export function parseBrief(content: string): ProjectBrief {
  * Detect primary programming language from a list of technologies.
  * Returns "python", "typescript", "javascript", or "unknown".
  */
-export function detectLanguage(technologies: string[]): "python" | "typescript" | "javascript" | "unknown" {
+export type DetectedLanguage = "python" | "typescript" | "javascript" | "rust" | "go" | "java" | "csharp" | "ruby" | "swift" | "kotlin" | "cpp" | "zig" | "unknown";
+
+export function detectLanguage(technologies: string[]): DetectedLanguage {
 	const techLower = technologies.map(t => t.toLowerCase()).join(" ");
+
+	// Check for Rust indicators (check before Python to avoid false positives)
+	const rustIndicators = ["rust", "cargo", "axum", "actix", "rocket", "tokio", "serde", "clap"];
+	if (rustIndicators.some(indicator => techLower.includes(indicator))) {
+		return "rust";
+	}
+
+	// Check for Go indicators
+	const goIndicators = ["golang", "gin", "echo", "fiber", "gorilla"];
+	if (goIndicators.some(indicator => techLower.includes(indicator))) {
+		return "go";
+	}
+	// Special handling for "go" which is ambiguous
+	if (/\bgo\b/.test(techLower) || /\bgo\d/.test(techLower)) {
+		return "go";
+	}
 
 	// Check for Python indicators
 	const pythonIndicators = ["python", "fastapi", "django", "flask", "pytest", "ruff", "mypy", "pip", "pypi", "uvicorn", "sqlalchemy", "pydantic"];
@@ -797,6 +815,48 @@ export function detectLanguage(technologies: string[]): "python" | "typescript" 
 	const jsIndicators = ["node", "javascript", "express", "react", "vue", "npm", "yarn", "jest", "eslint"];
 	if (jsIndicators.some(indicator => techLower.includes(indicator))) {
 		return "javascript";
+	}
+
+	// Check for Java indicators (check after JavaScript)
+	const javaIndicators = ["java", "spring", "maven", "gradle", "junit"];
+	if (javaIndicators.some(indicator => techLower.includes(indicator)) && !techLower.includes("javascript")) {
+		return "java";
+	}
+
+	// Check for C# indicators
+	const csharpIndicators = ["c#", "csharp", ".net", "dotnet", "asp.net", "nuget"];
+	if (csharpIndicators.some(indicator => techLower.includes(indicator))) {
+		return "csharp";
+	}
+
+	// Check for Ruby indicators
+	const rubyIndicators = ["ruby", "rails", "bundler", "rspec", "rake"];
+	if (rubyIndicators.some(indicator => techLower.includes(indicator))) {
+		return "ruby";
+	}
+
+	// Check for Swift indicators
+	const swiftIndicators = ["swift", "swiftui", "xcode", "cocoapods", "spm"];
+	if (swiftIndicators.some(indicator => techLower.includes(indicator))) {
+		return "swift";
+	}
+
+	// Check for Kotlin indicators
+	const kotlinIndicators = ["kotlin", "ktor", "kotlinx"];
+	if (kotlinIndicators.some(indicator => techLower.includes(indicator))) {
+		return "kotlin";
+	}
+
+	// Check for C++ indicators
+	const cppIndicators = ["c++", "cpp", "cmake", "conan", "vcpkg"];
+	if (cppIndicators.some(indicator => techLower.includes(indicator))) {
+		return "cpp";
+	}
+
+	// Check for Zig indicators
+	const zigIndicators = ["zig"];
+	if (zigIndicators.some(indicator => techLower.includes(indicator))) {
+		return "zig";
 	}
 
 	return "unknown";
@@ -823,11 +883,29 @@ function extractTechDetails(mustUse: string[]): {
 	for (const tech of mustUse) {
 		const lower = tech.toLowerCase();
 
-		// Language detection
+		// Language detection - support all common languages
 		if (lower.includes("python")) {
 			result.language = tech;
 		} else if (lower.includes("typescript")) {
 			result.language = "TypeScript";
+		} else if (lower.includes("rust") || lower.includes("cargo")) {
+			result.language = "Rust";
+		} else if (lower.includes("golang") || (lower.includes("go") && (lower.includes("go ") || lower.includes("go1") || lower === "go"))) {
+			result.language = "Go";
+		} else if (lower.includes("java") && !lower.includes("javascript")) {
+			result.language = "Java";
+		} else if (lower.includes("c++") || lower.includes("cpp")) {
+			result.language = "C++";
+		} else if (lower.includes("c#") || lower.includes("csharp") || lower.includes(".net")) {
+			result.language = "C#";
+		} else if (lower.includes("ruby")) {
+			result.language = "Ruby";
+		} else if (lower.includes("swift")) {
+			result.language = "Swift";
+		} else if (lower.includes("kotlin")) {
+			result.language = "Kotlin";
+		} else if (lower.includes("zig")) {
+			result.language = "Zig";
 		}
 
 		// Framework detection
@@ -843,6 +921,24 @@ function extractTechDetails(mustUse: string[]): {
 			result.framework = "Express";
 		} else if (lower.includes("click") || lower.includes("typer")) {
 			result.framework = tech;
+		} else if (lower.includes("axum")) {
+			result.framework = "Axum";
+		} else if (lower.includes("actix")) {
+			result.framework = "Actix-web";
+		} else if (lower.includes("rocket")) {
+			result.framework = "Rocket";
+		} else if (lower.includes("gin")) {
+			result.framework = "Gin";
+		} else if (lower.includes("echo")) {
+			result.framework = "Echo";
+		} else if (lower.includes("fiber")) {
+			result.framework = "Fiber";
+		} else if (lower.includes("spring")) {
+			result.framework = "Spring Boot";
+		} else if (lower.includes("rails")) {
+			result.framework = "Ruby on Rails";
+		} else if (lower.includes("clap")) {
+			result.framework = "clap";
 		}
 
 		// Database detection
@@ -923,21 +1019,70 @@ export function generateTechStack(brief: ProjectBrief): TechStack {
 		linting = "ESLint";
 		typeChecking = "TypeScript";
 		deployment = deployment || "npm";
+	} else if (detectedLang === "rust") {
+		// Rust-specific defaults - never inherit Python defaults
+		testing = testing || "cargo test";
+		linting = "clippy";
+		typeChecking = "Rust compiler";
+		deployment = deployment || "crates.io";
+	} else if (detectedLang === "go") {
+		// Go-specific defaults
+		testing = testing || "go test";
+		linting = "golangci-lint";
+		typeChecking = "Go compiler";
+		deployment = deployment || "go install";
+	} else if (detectedLang === "java" || detectedLang === "kotlin") {
+		// JVM-specific defaults
+		testing = testing || "JUnit";
+		linting = "Checkstyle";
+		typeChecking = "Java/Kotlin compiler";
+		deployment = deployment || "Maven Central";
+	} else if (detectedLang === "csharp") {
+		// C#/.NET-specific defaults
+		testing = testing || "xUnit";
+		linting = "dotnet format";
+		typeChecking = "C# compiler";
+		deployment = deployment || "NuGet";
+	} else if (detectedLang === "ruby") {
+		// Ruby-specific defaults
+		testing = testing || "RSpec";
+		linting = "RuboCop";
+		typeChecking = "Sorbet";
+		deployment = deployment || "RubyGems";
+	} else if (detectedLang === "swift") {
+		// Swift-specific defaults
+		testing = testing || "XCTest";
+		linting = "SwiftLint";
+		typeChecking = "Swift compiler";
+		deployment = deployment || "Swift Package Manager";
+	} else if (detectedLang === "cpp") {
+		// C++-specific defaults
+		testing = testing || "Google Test";
+		linting = "clang-tidy";
+		typeChecking = "C++ compiler";
+		deployment = deployment || "CMake install";
+	} else if (detectedLang === "zig") {
+		// Zig-specific defaults
+		testing = testing || "zig test";
+		linting = "zig fmt";
+		typeChecking = "Zig compiler";
+		deployment = deployment || "build.zig";
 	} else {
-		// For other languages, only use template defaults if language matches
-		if (templateIsPython === detectedIsPython) {
+		// For truly unknown languages, don't assume Python defaults
+		// Only use template defaults if we're explicitly in a Python context
+		if (templateIsPython && detectedIsPython) {
 			if (!framework) framework = defaults.framework || "";
 			if (!deployment) deployment = defaults.deployment || "";
 		}
-		testing = testing || defaults.testing || "";
-		linting = defaults.linting || "";
-		typeChecking = defaults.typeChecking || "";
+		testing = testing || "";
+		linting = "";
+		typeChecking = "";
 	}
 
 	const ciCd = defaults.ciCd || "GitHub Actions";
 
-	// Apply cannot_use blocks
-	if (isBlocked(language)) language = "Python 3.11+";
+	// Apply cannot_use blocks - clear blocked items but don't assume Python fallback
+	if (isBlocked(language)) language = "(language conflict - check must_use vs cannot_use)";
 	if (isBlocked(framework)) framework = "";
 	if (isBlocked(database)) database = "";
 	if (isBlocked(deployment)) deployment = "";
