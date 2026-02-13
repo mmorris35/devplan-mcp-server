@@ -189,6 +189,17 @@ export function detectVariant(brief: ProjectBrief): TemplateKey["variant"] | und
 }
 
 /**
+ * Domain specification for generating specific subtasks.
+ */
+export interface DomainSpecConfig {
+	type: "schema" | "api" | "pipeline" | "config" | "code" | "other";
+	language: string;
+	content: string;
+	context: string;
+	items: Array<{ name: string; description?: string }>;
+}
+
+/**
  * Configuration for minimal scaffold generation.
  */
 export interface MinimalScaffoldConfig {
@@ -198,6 +209,8 @@ export interface MinimalScaffoldConfig {
 	techStack: TechStack;
 	features: string[];
 	diagramsMarkdown?: string;
+	/** Domain specifications from the brief (schemas, APIs, pipelines) */
+	domainSpecs?: DomainSpecConfig[];
 }
 
 /**
@@ -205,7 +218,7 @@ export interface MinimalScaffoldConfig {
  * Uses language defaults to provide appropriate project structure guidance.
  */
 export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
-	const { projectName, projectType, language, techStack, features, diagramsMarkdown } = config;
+	const { projectName, projectType, language, techStack, features, diagramsMarkdown, domainSpecs } = config;
 	const langDefaults = getLanguageDefaults(language);
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 
@@ -215,7 +228,7 @@ export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
 	};
 
 	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders, diagramsMarkdown);
-	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults);
+	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults, domainSpecs);
 
 	return phase0 + "\n\n---\n\n" + phase1;
 }
@@ -425,7 +438,8 @@ function generateMinimalPhase1(
 	language: string,
 	techStack: TechStack,
 	features: string[],
-	langDefaults: LanguageDefaults
+	langDefaults: LanguageDefaults,
+	domainSpecs?: DomainSpecConfig[]
 ): string {
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 	const featureList =
@@ -445,13 +459,22 @@ function generateMinimalPhase1(
 		.filter(Boolean)
 		.join("\n");
 
+	// Check if we have domain specs to generate specific subtasks
+	const hasDomainSpecs = domainSpecs && domainSpecs.length > 0;
+	const domainSubtasks = hasDomainSpecs ? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore) : "";
+
+	const templateNote = hasDomainSpecs
+		? `> **Domain specifications detected**: ${domainSpecs!.length} code block(s) with implementation details.
+> Subtasks below include specific implementation requirements from your PROJECT_BRIEF.md.`
+		: `> **Note**: No specific template matched "${projectType}" with "${language}".
+> The subtasks below provide structure, but Claude should fill in specific deliverables
+> based on the technology stack and features.`;
+
 	return `## Phase 1: Core Implementation
 
 **Goal**: Implement core functionality for ${projectType}
 
-> **Note**: No specific template matched "${projectType}" with "${language}".
-> The subtasks below provide structure, but Claude should fill in specific deliverables
-> based on the technology stack and features.
+${templateNote}
 
 **Technology Stack**:
 ${techStackLines}
@@ -502,7 +525,7 @@ ${featureList}
 - **Notes**: (any additional context)
 
 ---
-
+${domainSubtasks}
 **Subtask 1.1.2: First Core Feature (Single Session)**
 
 **Prerequisites**:
@@ -553,6 +576,190 @@ ${featureList}
 - [ ] Linting passes
 - [ ] Squash merge to main
 - [ ] Delete feature branch`;
+}
+
+/**
+ * Generate domain-specific subtasks from brief specifications.
+ * Creates specific subtasks for each schema table, API endpoint, pipeline step, etc.
+ */
+function generateDomainSubtasks(
+	domainSpecs: DomainSpecConfig[],
+	langDefaults: LanguageDefaults,
+	projectUnderscore: string
+): string {
+	const subtasks: string[] = [];
+	let subtaskNum = 2; // Start after 1.1.1, before 1.1.2
+
+	// Group specs by type
+	const schemas = domainSpecs.filter(s => s.type === "schema");
+	const apis = domainSpecs.filter(s => s.type === "api");
+	const pipelines = domainSpecs.filter(s => s.type === "pipeline");
+
+	// Generate schema implementation subtasks
+	if (schemas.length > 0) {
+		const allSchemaItems = schemas.flatMap(s => s.items);
+		if (allSchemaItems.length > 0) {
+			// Get the actual schema code for reference
+			const schemaCode = schemas.map(s => s.content).join("\n\n");
+
+			subtasks.push(`
+**Subtask 1.1.${subtaskNum}: Database Schema Implementation (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.1: Main Entry Point
+
+**Deliverables**:
+${allSchemaItems.map(item => `- [ ] Implement \`${item.name}\` table/model as specified in PROJECT_BRIEF.md`).join("\n")}
+- [ ] Create database migration or initialization script
+- [ ] Write tests for schema creation and basic CRUD operations
+
+**Domain Specification (from PROJECT_BRIEF.md)**:
+\`\`\`sql
+${schemaCode}
+\`\`\`
+
+**Technology Decisions**:
+- Use the exact schema from the brief - do not simplify or modify column types
+- Preserve all constraints and indices
+
+**Files to Create**:
+- \`${projectUnderscore}/models.${langDefaults.fileExtension}\` (or ORM-appropriate path)
+- \`migrations/\` or \`schema.sql\`
+- \`tests/test_models.${langDefaults.fileExtension}\`
+
+**Success Criteria**:
+${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and queried`).join("\n")}
+- [ ] All column types match the specification exactly
+- [ ] Tests verify schema structure
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail)
+- **Branch**: feature/1-1-core-module
+- **Notes**: (any additional context)
+
+---
+`);
+			subtaskNum++;
+		}
+	}
+
+	// Generate API endpoint implementation subtasks
+	if (apis.length > 0) {
+		const allApiItems = apis.flatMap(s => s.items);
+		if (allApiItems.length > 0) {
+			// Get the actual API spec for reference
+			const apiSpec = apis.map(s => s.content).join("\n");
+
+			subtasks.push(`
+**Subtask 1.1.${subtaskNum}: API Endpoints Implementation (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.${subtaskNum - 1}: ${subtaskNum === 2 ? "Main Entry Point" : "Previous Subtask"}
+
+**Deliverables**:
+${allApiItems.map(item => `- [ ] Implement \`${item.name}\`${item.description ? ` - ${item.description}` : ""}`).join("\n")}
+- [ ] Add request/response validation
+- [ ] Write integration tests for each endpoint
+
+**Domain Specification (from PROJECT_BRIEF.md)**:
+\`\`\`
+${apiSpec}
+\`\`\`
+
+**Technology Decisions**:
+- Implement all endpoints exactly as specified in the brief
+- Use consistent error response format
+- Include OpenAPI/Swagger documentation if applicable
+
+**Files to Create**:
+- \`${projectUnderscore}/routes.${langDefaults.fileExtension}\` (or framework-appropriate path)
+- \`${projectUnderscore}/handlers/\`
+- \`tests/test_api.${langDefaults.fileExtension}\`
+
+**Success Criteria**:
+${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response format`).join("\n")}
+- [ ] All endpoints handle error cases
+- [ ] Integration tests pass for each endpoint
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail)
+- **Branch**: feature/1-1-core-module
+- **Notes**: (any additional context)
+
+---
+`);
+			subtaskNum++;
+		}
+	}
+
+	// Generate pipeline/workflow implementation subtasks
+	if (pipelines.length > 0) {
+		const allPipelineItems = pipelines.flatMap(s => s.items);
+		if (allPipelineItems.length > 0) {
+			// Get the actual pipeline spec for reference
+			const pipelineSpec = pipelines.map(s => s.content).join("\n");
+
+			subtasks.push(`
+**Subtask 1.1.${subtaskNum}: Processing Pipeline Implementation (Single Session)**
+
+**Prerequisites**:
+- [x] 1.1.${subtaskNum - 1}: ${subtaskNum === 2 ? "Main Entry Point" : "Previous Subtask"}
+
+**Deliverables**:
+${allPipelineItems.map(item => `- [ ] Implement ${item.name}${item.description ? `: ${item.description}` : ""}`).join("\n")}
+- [ ] Add error handling and retry logic for each step
+- [ ] Write tests for the complete pipeline flow
+
+**Domain Specification (from PROJECT_BRIEF.md)**:
+\`\`\`
+${pipelineSpec}
+\`\`\`
+
+**Technology Decisions**:
+- Follow the exact pipeline steps from the brief
+- Implement proper state tracking between steps
+- Add observability (logging, metrics) for each step
+
+**Files to Create**:
+- \`${projectUnderscore}/pipeline.${langDefaults.fileExtension}\`
+- \`${projectUnderscore}/steps/\`
+- \`tests/test_pipeline.${langDefaults.fileExtension}\`
+
+**Success Criteria**:
+${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join("\n")}
+- [ ] Pipeline handles failures gracefully
+- [ ] End-to-end test verifies complete flow
+
+---
+
+**Completion Notes**:
+- **Implementation**: (describe what was done)
+- **Files Created**: (list with line counts)
+- **Files Modified**: (list)
+- **Tests**: (X tests, Y% coverage)
+- **Build**: (pass/fail)
+- **Branch**: feature/1-1-core-module
+- **Notes**: (any additional context)
+
+---
+`);
+			subtaskNum++;
+		}
+	}
+
+	return subtasks.join("\n");
 }
 
 /**
@@ -745,6 +952,9 @@ export function parseBrief(content: string): ProjectBrief {
 		return items;
 	};
 
+	// Extract code blocks with context for domain specifications
+	const domainSpecs = extractDomainSpecs(content);
+
 	return {
 		projectName: extractField("Project Name"),
 		projectType: extractField("Project Type"),
@@ -771,15 +981,167 @@ export function parseBrief(content: string): ProjectBrief {
 		questionsAndClarifications: [],
 		useCases: [],
 		deliverables: [],
+		domainSpecs,
 	};
+}
+
+/**
+ * Extract domain specifications from code blocks in the brief.
+ * Captures SQL schemas, API endpoints, pipeline definitions, etc.
+ */
+function extractDomainSpecs(content: string): Array<{
+	type: "schema" | "api" | "pipeline" | "config" | "code" | "other";
+	language: string;
+	content: string;
+	context: string;
+	items: Array<{ name: string; description?: string }>;
+}> {
+	const specs: Array<{
+		type: "schema" | "api" | "pipeline" | "config" | "code" | "other";
+		language: string;
+		content: string;
+		context: string;
+		items: Array<{ name: string; description?: string }>;
+	}> = [];
+
+	// Match code blocks with language hints: ```sql, ```rust, etc.
+	const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+	const lines = content.split("\n");
+
+	let match;
+	while ((match = codeBlockRegex.exec(content)) !== null) {
+		const language = match[1].toLowerCase() || "text";
+		const codeContent = match[2].trim();
+		const blockStart = content.substring(0, match.index);
+		const contextLines = blockStart.split("\n").slice(-5).join("\n").trim();
+
+		// Determine spec type and extract items
+		const { type, items } = classifyAndExtractItems(language, codeContent, contextLines);
+
+		specs.push({
+			type,
+			language,
+			content: codeContent,
+			context: contextLines,
+			items,
+		});
+	}
+
+	// Also extract API endpoint lists (common pattern in briefs)
+	const apiListRegex = /((?:GET|POST|PUT|PATCH|DELETE)\s+\/\S+.*)/g;
+	const apiMatches = content.match(apiListRegex);
+	if (apiMatches && apiMatches.length > 0) {
+		const apiItems = apiMatches.map(line => {
+			const parts = line.trim().split(/\s+-\s+/);
+			const endpoint = parts[0].trim();
+			const description = parts[1]?.trim();
+			return { name: endpoint, description };
+		});
+
+		// Only add if we didn't already capture this in a code block
+		const alreadyCaptured = specs.some(s => s.type === "api" && s.items.length > 0);
+		if (!alreadyCaptured && apiItems.length > 0) {
+			specs.push({
+				type: "api",
+				language: "text",
+				content: apiMatches.join("\n"),
+				context: "API Endpoints",
+				items: apiItems,
+			});
+		}
+	}
+
+	return specs;
+}
+
+/**
+ * Classify a code block and extract implementation items.
+ */
+function classifyAndExtractItems(
+	language: string,
+	content: string,
+	context: string
+): {
+	type: "schema" | "api" | "pipeline" | "config" | "code" | "other";
+	items: Array<{ name: string; description?: string }>;
+} {
+	const items: Array<{ name: string; description?: string }> = [];
+	let type: "schema" | "api" | "pipeline" | "config" | "code" | "other" = "other";
+
+	// SQL schema detection
+	if (language === "sql" || content.includes("CREATE TABLE") || content.includes("CREATE VIRTUAL TABLE")) {
+		type = "schema";
+		// Extract table names
+		const tableMatches = content.matchAll(/CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/gi);
+		for (const m of tableMatches) {
+			items.push({ name: m[1], description: "database table" });
+		}
+	}
+
+	// API endpoint detection
+	else if (language === "text" && (content.includes("GET ") || content.includes("POST ") || content.includes("PUT "))) {
+		type = "api";
+		const endpointMatches = content.matchAll(/(GET|POST|PUT|PATCH|DELETE)\s+(\/\S+)(?:\s+-\s+(.*))?/g);
+		for (const m of endpointMatches) {
+			items.push({ name: `${m[1]} ${m[2]}`, description: m[3]?.trim() });
+		}
+	}
+
+	// Pipeline/workflow detection
+	else if (context.toLowerCase().includes("pipeline") || context.toLowerCase().includes("workflow") ||
+			 content.includes("Step ") || content.match(/^\d+\.\s+/m)) {
+		type = "pipeline";
+		// Extract numbered steps
+		const stepMatches = content.matchAll(/^(\d+)\.\s+(.+)$/gm);
+		for (const m of stepMatches) {
+			items.push({ name: `Step ${m[1]}`, description: m[2].trim() });
+		}
+	}
+
+	// Config detection (JSON, YAML, TOML)
+	else if (language === "json" || language === "yaml" || language === "toml") {
+		type = "config";
+		// For config, just note the file type
+		items.push({ name: `${language.toUpperCase()} config`, description: context });
+	}
+
+	// Code with specific patterns
+	else if (["rust", "python", "typescript", "go", "java"].includes(language)) {
+		type = "code";
+		// Extract struct/class/function names
+		const structMatches = content.matchAll(/(?:struct|class|fn|def|func|function)\s+(\w+)/g);
+		for (const m of structMatches) {
+			items.push({ name: m[1], description: `${language} implementation` });
+		}
+	}
+
+	return { type, items };
 }
 
 /**
  * Detect primary programming language from a list of technologies.
  * Returns "python", "typescript", "javascript", or "unknown".
  */
-export function detectLanguage(technologies: string[]): "python" | "typescript" | "javascript" | "unknown" {
+export type DetectedLanguage = "python" | "typescript" | "javascript" | "rust" | "go" | "java" | "csharp" | "ruby" | "swift" | "kotlin" | "cpp" | "zig" | "unknown";
+
+export function detectLanguage(technologies: string[]): DetectedLanguage {
 	const techLower = technologies.map(t => t.toLowerCase()).join(" ");
+
+	// Check for Rust indicators (check before Python to avoid false positives)
+	const rustIndicators = ["rust", "cargo", "axum", "actix", "rocket", "tokio", "serde", "clap"];
+	if (rustIndicators.some(indicator => techLower.includes(indicator))) {
+		return "rust";
+	}
+
+	// Check for Go indicators
+	const goIndicators = ["golang", "gin", "echo", "fiber", "gorilla"];
+	if (goIndicators.some(indicator => techLower.includes(indicator))) {
+		return "go";
+	}
+	// Special handling for "go" which is ambiguous
+	if (/\bgo\b/.test(techLower) || /\bgo\d/.test(techLower)) {
+		return "go";
+	}
 
 	// Check for Python indicators
 	const pythonIndicators = ["python", "fastapi", "django", "flask", "pytest", "ruff", "mypy", "pip", "pypi", "uvicorn", "sqlalchemy", "pydantic"];
@@ -797,6 +1159,48 @@ export function detectLanguage(technologies: string[]): "python" | "typescript" 
 	const jsIndicators = ["node", "javascript", "express", "react", "vue", "npm", "yarn", "jest", "eslint"];
 	if (jsIndicators.some(indicator => techLower.includes(indicator))) {
 		return "javascript";
+	}
+
+	// Check for Java indicators (check after JavaScript)
+	const javaIndicators = ["java", "spring", "maven", "gradle", "junit"];
+	if (javaIndicators.some(indicator => techLower.includes(indicator)) && !techLower.includes("javascript")) {
+		return "java";
+	}
+
+	// Check for C# indicators
+	const csharpIndicators = ["c#", "csharp", ".net", "dotnet", "asp.net", "nuget"];
+	if (csharpIndicators.some(indicator => techLower.includes(indicator))) {
+		return "csharp";
+	}
+
+	// Check for Ruby indicators
+	const rubyIndicators = ["ruby", "rails", "bundler", "rspec", "rake"];
+	if (rubyIndicators.some(indicator => techLower.includes(indicator))) {
+		return "ruby";
+	}
+
+	// Check for Swift indicators
+	const swiftIndicators = ["swift", "swiftui", "xcode", "cocoapods", "spm"];
+	if (swiftIndicators.some(indicator => techLower.includes(indicator))) {
+		return "swift";
+	}
+
+	// Check for Kotlin indicators
+	const kotlinIndicators = ["kotlin", "ktor", "kotlinx"];
+	if (kotlinIndicators.some(indicator => techLower.includes(indicator))) {
+		return "kotlin";
+	}
+
+	// Check for C++ indicators
+	const cppIndicators = ["c++", "cpp", "cmake", "conan", "vcpkg"];
+	if (cppIndicators.some(indicator => techLower.includes(indicator))) {
+		return "cpp";
+	}
+
+	// Check for Zig indicators
+	const zigIndicators = ["zig"];
+	if (zigIndicators.some(indicator => techLower.includes(indicator))) {
+		return "zig";
 	}
 
 	return "unknown";
@@ -823,11 +1227,29 @@ function extractTechDetails(mustUse: string[]): {
 	for (const tech of mustUse) {
 		const lower = tech.toLowerCase();
 
-		// Language detection
+		// Language detection - support all common languages
 		if (lower.includes("python")) {
 			result.language = tech;
 		} else if (lower.includes("typescript")) {
 			result.language = "TypeScript";
+		} else if (lower.includes("rust") || lower.includes("cargo")) {
+			result.language = "Rust";
+		} else if (lower.includes("golang") || (lower.includes("go") && (lower.includes("go ") || lower.includes("go1") || lower === "go"))) {
+			result.language = "Go";
+		} else if (lower.includes("java") && !lower.includes("javascript")) {
+			result.language = "Java";
+		} else if (lower.includes("c++") || lower.includes("cpp")) {
+			result.language = "C++";
+		} else if (lower.includes("c#") || lower.includes("csharp") || lower.includes(".net")) {
+			result.language = "C#";
+		} else if (lower.includes("ruby")) {
+			result.language = "Ruby";
+		} else if (lower.includes("swift")) {
+			result.language = "Swift";
+		} else if (lower.includes("kotlin")) {
+			result.language = "Kotlin";
+		} else if (lower.includes("zig")) {
+			result.language = "Zig";
 		}
 
 		// Framework detection
@@ -843,6 +1265,24 @@ function extractTechDetails(mustUse: string[]): {
 			result.framework = "Express";
 		} else if (lower.includes("click") || lower.includes("typer")) {
 			result.framework = tech;
+		} else if (lower.includes("axum")) {
+			result.framework = "Axum";
+		} else if (lower.includes("actix")) {
+			result.framework = "Actix-web";
+		} else if (lower.includes("rocket")) {
+			result.framework = "Rocket";
+		} else if (lower.includes("gin")) {
+			result.framework = "Gin";
+		} else if (lower.includes("echo")) {
+			result.framework = "Echo";
+		} else if (lower.includes("fiber")) {
+			result.framework = "Fiber";
+		} else if (lower.includes("spring")) {
+			result.framework = "Spring Boot";
+		} else if (lower.includes("rails")) {
+			result.framework = "Ruby on Rails";
+		} else if (lower.includes("clap")) {
+			result.framework = "clap";
 		}
 
 		// Database detection
@@ -923,21 +1363,70 @@ export function generateTechStack(brief: ProjectBrief): TechStack {
 		linting = "ESLint";
 		typeChecking = "TypeScript";
 		deployment = deployment || "npm";
+	} else if (detectedLang === "rust") {
+		// Rust-specific defaults - never inherit Python defaults
+		testing = testing || "cargo test";
+		linting = "clippy";
+		typeChecking = "Rust compiler";
+		deployment = deployment || "crates.io";
+	} else if (detectedLang === "go") {
+		// Go-specific defaults
+		testing = testing || "go test";
+		linting = "golangci-lint";
+		typeChecking = "Go compiler";
+		deployment = deployment || "go install";
+	} else if (detectedLang === "java" || detectedLang === "kotlin") {
+		// JVM-specific defaults
+		testing = testing || "JUnit";
+		linting = "Checkstyle";
+		typeChecking = "Java/Kotlin compiler";
+		deployment = deployment || "Maven Central";
+	} else if (detectedLang === "csharp") {
+		// C#/.NET-specific defaults
+		testing = testing || "xUnit";
+		linting = "dotnet format";
+		typeChecking = "C# compiler";
+		deployment = deployment || "NuGet";
+	} else if (detectedLang === "ruby") {
+		// Ruby-specific defaults
+		testing = testing || "RSpec";
+		linting = "RuboCop";
+		typeChecking = "Sorbet";
+		deployment = deployment || "RubyGems";
+	} else if (detectedLang === "swift") {
+		// Swift-specific defaults
+		testing = testing || "XCTest";
+		linting = "SwiftLint";
+		typeChecking = "Swift compiler";
+		deployment = deployment || "Swift Package Manager";
+	} else if (detectedLang === "cpp") {
+		// C++-specific defaults
+		testing = testing || "Google Test";
+		linting = "clang-tidy";
+		typeChecking = "C++ compiler";
+		deployment = deployment || "CMake install";
+	} else if (detectedLang === "zig") {
+		// Zig-specific defaults
+		testing = testing || "zig test";
+		linting = "zig fmt";
+		typeChecking = "Zig compiler";
+		deployment = deployment || "build.zig";
 	} else {
-		// For other languages, only use template defaults if language matches
-		if (templateIsPython === detectedIsPython) {
+		// For truly unknown languages, don't assume Python defaults
+		// Only use template defaults if we're explicitly in a Python context
+		if (templateIsPython && detectedIsPython) {
 			if (!framework) framework = defaults.framework || "";
 			if (!deployment) deployment = defaults.deployment || "";
 		}
-		testing = testing || defaults.testing || "";
-		linting = defaults.linting || "";
-		typeChecking = defaults.typeChecking || "";
+		testing = testing || "";
+		linting = "";
+		typeChecking = "";
 	}
 
 	const ciCd = defaults.ciCd || "GitHub Actions";
 
-	// Apply cannot_use blocks
-	if (isBlocked(language)) language = "Python 3.11+";
+	// Apply cannot_use blocks - clear blocked items but don't assume Python fallback
+	if (isBlocked(language)) language = "(language conflict - check must_use vs cannot_use)";
 	if (isBlocked(framework)) framework = "";
 	if (isBlocked(database)) database = "";
 	if (isBlocked(deployment)) deployment = "";
@@ -1236,6 +1725,7 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 			techStack: techStack,
 			features: brief.keyFeatures,
 			diagramsMarkdown: diagramsMarkdown,
+			domainSpecs: brief.domainSpecs,
 		});
 
 		// For minimal scaffold, generate a simpler progress section

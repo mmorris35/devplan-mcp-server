@@ -6,6 +6,28 @@
 import { z } from "zod";
 
 // Zod schemas for validation
+/**
+ * Domain specification extracted from code blocks in the brief.
+ * These contain the actual implementation details (schemas, APIs, pipelines).
+ */
+export const DomainSpecSchema = z.object({
+	/** Type of specification: schema, api, pipeline, config, etc. */
+	type: z.enum(["schema", "api", "pipeline", "config", "code", "other"]),
+	/** Language hint from code block (sql, rust, json, etc.) */
+	language: z.string(),
+	/** The actual code/spec content */
+	content: z.string(),
+	/** Surrounding context/description */
+	context: z.string(),
+	/** Extracted items (tables, endpoints, steps) for subtask generation */
+	items: z.array(z.object({
+		name: z.string(),
+		description: z.string().optional(),
+	})).default([]),
+});
+
+export type DomainSpec = z.infer<typeof DomainSpecSchema>;
+
 export const ProjectBriefSchema = z.object({
 	projectName: z.string().min(1, "project_name is required"),
 	projectType: z.string().min(1, "project_type is required"),
@@ -37,6 +59,8 @@ export const ProjectBriefSchema = z.object({
 	architectureVision: z.string().optional(),
 	useCases: z.array(z.string()).default([]),
 	deliverables: z.array(z.string()).default([]),
+	/** Domain specifications extracted from code blocks */
+	domainSpecs: z.array(DomainSpecSchema).default([]),
 });
 
 export type ProjectBrief = z.infer<typeof ProjectBriefSchema>;

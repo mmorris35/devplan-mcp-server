@@ -795,7 +795,22 @@ The user should NEVER see the raw scaffold - only the enhanced, validated plan.`
 					content: [
 						{
 							type: "text",
-							text: `Here is a scaffold for DEVELOPMENT_PLAN.md:\n\n${enhancedPlan}\n\n---\nIMPORTANT: This is a starting point. You MUST review and enhance it to match the quality of https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
+							text: `## ⚠️ ACTION REQUIRED: WRITE THIS FILE TO DISK
+
+**You MUST save this content to \`DEVELOPMENT_PLAN.md\` in the project root.**
+
+Use your write/edit tool to create the file NOW. Do not just display it — if you don't write it to disk, it will be lost when context compaction happens.
+
+---
+
+# DEVELOPMENT_PLAN.md scaffold
+
+${enhancedPlan}
+
+---
+## 📝 ENHANCEMENT CHECKLIST
+
+This is a starting point. Review and enhance to match: https://raw.githubusercontent.com/mmorris35/ClaudeCode-DevPlanBuilder/main/examples/hello-cli/DEVELOPMENT_PLAN.md
 
 Key things to verify/add:
 - Each subtask has 3-7 specific deliverables with checkboxes
@@ -819,14 +834,17 @@ Key things to verify/add:
 
 Before presenting this plan to the user, you MUST:
 
-1. **Enhance** this scaffold with complete, working code for each subtask
+1. **WRITE** the enhanced plan to \`DEVELOPMENT_PLAN.md\` using your file write tool
 2. **Validate** by calling \`devplan_validate_haiku_executable\` with the enhanced plan
 3. **Fix** any issues reported by validation
 4. **Re-validate** until the plan passes
+5. **Confirm** the file exists: \`ls -la DEVELOPMENT_PLAN.md\`
 
-Do NOT show this scaffold to the user. Show only the validated plan.
+⚠️ **WARNING**: If you do not write this to disk, it WILL be lost on context compaction. The user will have to start over.
 
-NEXT STEP: Enhance this plan, then call devplan_validate_haiku_executable to verify it.`,
+Do NOT show this scaffold to the user. Show only the validated, written plan.
+
+NEXT STEP: Write the enhanced plan to DEVELOPMENT_PLAN.md, then call devplan_validate_haiku_executable.`,
 						},
 					],
 				};
