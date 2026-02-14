@@ -9,7 +9,7 @@
 
 import type { DevelopmentPlan, Phase, ProjectBrief, TechStack } from "./models";
 import { getTemplate, PROJECT_TYPE_TASKS, findTemplate, type PhaseTemplate } from "./templates";
-import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
+import { getLanguageDefaults, getLanguageFilePaths, LanguageDefaults, type LanguageFilePaths } from "./language-defaults";
 import { generateReadmeDiagrams, formatDiagramsAsMarkdown } from "./readme-diagrams";
 
 export interface BriefInput {
@@ -34,7 +34,7 @@ export interface BriefInput {
  */
 export interface TemplateKey {
 	projectType: "cli" | "web_app" | "api" | "library";
-	language: "python" | "typescript" | "javascript" | "go" | "rust" | "unknown";
+	language: "python" | "typescript" | "javascript" | "go" | "rust" | "java" | "kotlin" | "csharp" | "ruby" | "unknown";
 	variant?: "static" | "serverless" | "fullstack" | "minimal";
 }
 
@@ -65,16 +65,26 @@ export function resolveTemplateKey(brief: ProjectBrief): TemplateKey {
 		case "javascript":
 			language = "javascript";
 			break;
+		case "go":
+			language = "go";
+			break;
+		case "rust":
+			language = "rust";
+			break;
+		case "java":
+			language = "java";
+			break;
+		case "kotlin":
+			language = "kotlin";
+			break;
+		case "csharp":
+			language = "csharp";
+			break;
+		case "ruby":
+			language = "ruby";
+			break;
 		default:
-			// Check for Go indicators
-			const techLower = brief.mustUseTech.map((t) => t.toLowerCase()).join(" ");
-			if (techLower.includes("go") || techLower.includes("golang")) {
-				language = "go";
-			} else if (techLower.includes("rust") || techLower.includes("cargo")) {
-				language = "rust";
-			} else {
-				language = "unknown";
-			}
+			language = "unknown";
 	}
 
 	// Detect variant (placeholder until detectVariant is implemented in 1.1.2)
@@ -445,6 +455,8 @@ function generateMinimalPhase1(
 	domainSpecs?: DomainSpecConfig[]
 ): string {
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+	const projectKebab = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+	const filePaths = getLanguageFilePaths(language, projectUnderscore, projectKebab);
 	const featureList =
 		features.length > 0
 			? features
@@ -464,8 +476,8 @@ function generateMinimalPhase1(
 
 	// Check if we have domain specs to generate specific subtasks
 	const hasDomainSpecs = domainSpecs && domainSpecs.length > 0;
-	const domainResult = hasDomainSpecs 
-		? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore) 
+	const domainResult = hasDomainSpecs
+		? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore, filePaths)
 		: { text: "", nextSubtaskNum: 2 };
 	const domainSubtasks = domainResult.text;
 	const nextSubtaskNum = domainResult.nextSubtaskNum;
@@ -499,7 +511,7 @@ ${featureList}
 - [x] 0.2.2: Testing Setup
 
 **Deliverables**:
-- [ ] Create main entry point file (\`${projectUnderscore}/main.${langDefaults.fileExtension}\` or equivalent)
+- [ ] Create main entry point file (\`${filePaths.mainEntry}\`)
 - [ ] Implement basic structure/skeleton for the ${projectType}
 - [ ] Add appropriate imports and type definitions
 - [ ] Write unit tests for the entry point
@@ -509,8 +521,8 @@ ${featureList}
 - Use types/interfaces where supported by the language
 
 **Files to Create**:
-- \`${projectUnderscore}/main.${langDefaults.fileExtension}\` (or framework-appropriate path)
-- \`tests/test_main.${langDefaults.fileExtension}\`
+- \`${filePaths.mainEntry}\`
+- \`${filePaths.testEntry}\`
 
 **Files to Modify**:
 - None
@@ -593,7 +605,8 @@ ${domainSubtasks}
 function generateDomainSubtasks(
 	domainSpecs: DomainSpecConfig[],
 	langDefaults: LanguageDefaults,
-	projectUnderscore: string
+	projectUnderscore: string,
+	filePaths?: LanguageFilePaths
 ): { text: string; nextSubtaskNum: number } {
 	const subtasks: string[] = [];
 	let subtaskNum = 2; // Start after 1.1.1, before 1.1.2
@@ -631,9 +644,9 @@ ${schemaCode}
 - Preserve all constraints and indices
 
 **Files to Create**:
-- \`${projectUnderscore}/models.${langDefaults.fileExtension}\` (or ORM-appropriate path)
+- \`${filePaths ? filePaths.modelsFile : `${projectUnderscore}/models.${langDefaults.fileExtension}`}\`
 - \`migrations/\` or \`schema.sql\`
-- \`tests/test_models.${langDefaults.fileExtension}\`
+- \`${filePaths ? filePaths.testModels : `tests/test_models.${langDefaults.fileExtension}`}\`
 
 **Success Criteria**:
 ${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and queried`).join("\n")}
@@ -686,9 +699,9 @@ ${apiSpec}
 - Include OpenAPI/Swagger documentation if applicable
 
 **Files to Create**:
-- \`${projectUnderscore}/routes.${langDefaults.fileExtension}\` (or framework-appropriate path)
-- \`${projectUnderscore}/handlers/\`
-- \`tests/test_api.${langDefaults.fileExtension}\`
+- \`${filePaths ? filePaths.routesFile : `${projectUnderscore}/routes.${langDefaults.fileExtension}`}\`
+- \`${filePaths ? filePaths.handlersDir : `${projectUnderscore}/handlers/`}\`
+- \`${filePaths ? filePaths.testApi : `tests/test_api.${langDefaults.fileExtension}`}\`
 
 **Success Criteria**:
 ${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response format`).join("\n")}
@@ -741,9 +754,9 @@ ${pipelineSpec}
 - Add observability (logging, metrics) for each step
 
 **Files to Create**:
-- \`${projectUnderscore}/pipeline.${langDefaults.fileExtension}\`
-- \`${projectUnderscore}/steps/\`
-- \`tests/test_pipeline.${langDefaults.fileExtension}\`
+- \`${filePaths ? filePaths.handlersDir.replace(/\/$/, "") + "/pipeline." + langDefaults.fileExtension : `${projectUnderscore}/pipeline.${langDefaults.fileExtension}`}\`
+- \`${filePaths ? filePaths.handlersDir + "steps/" : `${projectUnderscore}/steps/`}\`
+- \`${filePaths ? filePaths.testApi.replace(/api|routes|controller/i, "pipeline") : `tests/test_pipeline.${langDefaults.fileExtension}`}\`
 
 **Success Criteria**:
 ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join("\n")}
@@ -3436,56 +3449,25 @@ function generateDeferredPhases(brief: ProjectBrief): string {
 		return "";
 	}
 
-	// Calculate the starting phase number (after grouped MVP features)
-	const groupedFeatures = groupRelatedFeatures(brief.keyFeatures);
-	const lastMvpPhaseNum = 2 + groupedFeatures.length - 1;
+	const deferredItems = brief.niceToHaveFeatures.map((feature, index) => {
+		return `### v2.${index + 1}: ${feature}
 
-	const deferredPhases = brief.niceToHaveFeatures.map((feature, index) => {
-		// Use X.5 notation to indicate post-MVP
-		const phaseNum = `${lastMvpPhaseNum + index + 1}.5`;
-		const featureId = feature
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.slice(0, 30);
+**Goal**: ${feature}
+**Status**: Deferred - implement after MVP
+**Prerequisites**: All MVP phases complete and tested
 
-		return `## Phase ${phaseNum} (v2): ${feature}
-
-**Goal**: Implement ${feature.toLowerCase()} (post-MVP enhancement)
-**Duration**: TBD (deferred)
-**Status**: ⏸️ DEFERRED - Implement after MVP completion
-
-### Task ${phaseNum}.1: Implementation (v2)
-
-**Subtask ${phaseNum}.1.1: ${feature} (Deferred)**
-
-**Prerequisites**:
-- [ ] All MVP phases complete
-- [ ] MVP tested and stable
-
-**Deliverables**:
-- [ ] (To be detailed after MVP completion)
-
-**Success Criteria**:
-- [ ] Feature works as specified
-- [ ] All tests pass
-- [ ] Documentation updated
-
----
-
-**Note**: This phase is deferred until after MVP release. Requirements may be refined based on MVP learnings.
-
----`;
+**Scope** (to be detailed after MVP):
+- [ ] Design and implementation
+- [ ] Tests with >80% coverage
+- [ ] Documentation updated`;
 	});
 
-	if (deferredPhases.length === 0) {
-		return "";
-	}
+	return `## v2 Roadmap (Post-MVP Features)
 
-	return `## Deferred Phases (v2 Features)
+The following features are planned for v2, after MVP is complete and stable.
+Requirements may be refined based on MVP learnings.
 
-The following phases are planned for v2, after MVP completion. They use Phase X.5 notation to indicate their deferred status.
-
-${deferredPhases.join("\n\n")}`;
+${deferredItems.join("\n\n---\n\n")}`;
 }
 
 /**
@@ -4536,7 +4518,7 @@ export function generateExecutorAgent(
 	const brief = parseBrief(briefContent);
 	const projectSlug = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 	const projectUnderscore = brief.projectName.toLowerCase().replace(/-/g, "_");
-	const isPython = language === "python";
+	const langConfig = getLanguageConfig(language, projectUnderscore, projectSlug);
 
 	const filePath = `.claude/agents/${projectSlug}-executor.md`;
 
@@ -4564,28 +4546,11 @@ Execute development subtasks for **${brief.projectName}** with mechanical precis
 **Goal**: ${brief.primaryGoal}
 **Target Users**: ${brief.targetUsers}
 
-**Tech Stack**:
-${isPython ? `- Language: Python 3.11+
-- CLI Framework: Click
-- Testing: pytest + pytest-cov
-- Linting: ruff
-- Type Checking: mypy` : `- Language: TypeScript
-- Testing: Jest/Vitest
-- Linting: ESLint + Prettier
-- Type Checking: TypeScript strict mode`}
+${langConfig.techStack}
 
 **Directory Structure**:
 \`\`\`
-${brief.projectName}/
-├── ${projectUnderscore}/           # Main package
-│   ├── __init__.py
-│   ├── cli.py              # CLI commands
-│   └── ...                 # Feature modules
-├── tests/
-│   └── test_*.py           # Test modules
-├── PROJECT_BRIEF.md        # Requirements
-├── DEVELOPMENT_PLAN.md     # This plan
-└── CLAUDE.md               # Development rules
+${langConfig.structure}
 \`\`\`
 
 ## Task Tracking
@@ -4669,26 +4634,12 @@ This shows the user what you're actively working on with a spinner.
 
 ### 3. Write Tests
 - Create tests for all new functions/classes
-- Target ${isPython ? "100%" : "high"} coverage on new code
+- Target high coverage on new code
 - Test success cases, failures, and edge cases
 
 ### 4. Run Verification
 \`\`\`bash
-${isPython ? `# Linting
-ruff check ${projectUnderscore} tests
-
-# Type checking
-mypy ${projectUnderscore}
-
-# Tests with coverage
-pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing` : `# Linting
-npm run lint
-
-# Type checking
-npm run typecheck
-
-# Tests
-npm test`}
+${langConfig.testCommands}
 \`\`\`
 
 ### 5. Update Documentation
@@ -4753,11 +4704,9 @@ If blocked:
 ## If Verification Fails
 
 ### Linting Errors
-${isPython ? `1. Run \`ruff check --fix ${projectUnderscore} tests\` for auto-fixable issues
+1. Run ${langConfig.lintTool} with auto-fix flag if available
 2. For remaining issues, fix manually following error messages
-3. Run \`ruff check\` again to verify all issues resolved` : `1. Run \`npm run lint -- --fix\` for auto-fixable issues
-2. For remaining issues, fix manually following error messages
-3. Run \`npm run lint\` again to verify all issues resolved`}
+3. Re-run linter to verify all issues resolved
 4. Re-run full verification before committing
 
 ### Test Failures
@@ -4765,27 +4714,14 @@ ${isPython ? `1. Run \`ruff check --fix ${projectUnderscore} tests\` for auto-fi
 2. Identify if failure is in new code or existing code:
    - **New code**: Fix the implementation to match expected behavior
    - **Existing code**: Check for breaking changes, add backwards compatibility
-3. Run specific failing test with verbose output:
-${isPython ? `   \`\`\`bash
-   pytest tests/test_specific.py::test_name -v
-   \`\`\`` : `   \`\`\`bash
-   npm test -- --testNamePattern="test name"
-   \`\`\``}
+3. Run the specific failing test in verbose mode
 4. After fixing, run FULL test suite to catch regressions
 5. Never commit with failing tests
 
 ### Type Errors
-${isPython ? `1. Read mypy error message carefully - it shows exact location
-2. Common fixes:
-   - Add missing type hints: \`def func(arg: str) -> bool:\`
-   - Use Optional for nullable: \`Optional[str]\` or \`str | None\`
-   - Add type: ignore comment ONLY as last resort
-3. Run \`mypy ${projectUnderscore}\` to verify fix` : `1. Read TypeScript error message carefully - it shows exact location
-2. Common fixes:
-   - Add missing types: \`function func(arg: string): boolean\`
-   - Use union types for nullable: \`string | null\`
-   - Avoid \`any\` - use \`unknown\` and narrow the type
-3. Run \`npm run typecheck\` to verify fix`}
+1. Read the ${langConfig.typeChecker} error message carefully - it shows exact location
+2. Fix type issues following language conventions
+3. Re-run ${langConfig.typeChecker} to verify fix
 
 ## Handling Merge Conflicts
 
@@ -4873,7 +4809,8 @@ export function generateVerifierAgent(
 ): { content: string; filePath: string } {
 	const brief = parseBrief(briefContent);
 	const projectSlug = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-	const isPython = language === "python";
+	const projectUnderscore = brief.projectName.toLowerCase().replace(/-/g, "_");
+	const langConfig = getLanguageConfig(language, projectUnderscore, projectSlug);
 
 	const filePath = `.claude/agents/${projectSlug}-verifier.md`;
 
@@ -4950,12 +4887,8 @@ TaskUpdate({ taskId: "[smoke-tests-task-id]", status: "in_progress" })
 - [ ] Help/version flags work (if CLI)
 
 \`\`\`bash
-${isPython ? `# Example smoke tests for Python CLI
-${projectSlug} --version
-${projectSlug} --help
-echo "test input" | ${projectSlug}` : `# Example smoke tests for Node.js
-npm start
-npm run --help`}
+# Example smoke tests
+${langConfig.testCommands.split("\n")[1] || langConfig.packageInstall}
 \`\`\`
 \`\`\`
 TaskUpdate({ taskId: "[smoke-tests-task-id]", status: "completed" })
@@ -5012,21 +4945,7 @@ TaskUpdate({ taskId: "[non-functional-task-id]", status: "in_progress" })
 - [ ] Tests: Test suite exists and passes
 
 \`\`\`bash
-${isPython ? `# Run full test suite
-pytest tests/ -v --cov --cov-report=term-missing
-
-# Check linting
-ruff check .
-
-# Check types
-mypy ${projectSlug.replace(/-/g, "_")}` : `# Run full test suite
-npm test
-
-# Check linting
-npm run lint
-
-# Check types
-npm run typecheck`}
+${langConfig.testCommands}
 \`\`\`
 \`\`\`
 TaskUpdate({ taskId: "[non-functional-task-id]", status: "completed" })

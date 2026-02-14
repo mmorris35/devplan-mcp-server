@@ -420,3 +420,113 @@ export function getLanguageDefaults(language: string): LanguageDefaults {
 
 	return LANGUAGE_DEFAULTS[normalized] || LANGUAGE_DEFAULTS.unknown;
 }
+
+/**
+ * Language-specific file path patterns for Phase 1 scaffolding.
+ * Returns paths appropriate for the language's conventions.
+ */
+export interface LanguageFilePaths {
+	mainEntry: string;
+	testEntry: string;
+	modelsFile: string;
+	routesFile: string;
+	handlersDir: string;
+	testModels: string;
+	testApi: string;
+}
+
+/**
+ * Get language-appropriate file paths for Phase 1 subtasks.
+ * Uses the project name to generate proper paths following language conventions.
+ */
+export function getLanguageFilePaths(language: string, projectUnderscore: string, projectKebab: string): LanguageFilePaths {
+	const lang = language.toLowerCase();
+
+	if (lang === "java" || lang === "kotlin") {
+		const ext = lang === "kotlin" ? "kt" : "java";
+		const srcDir = lang === "kotlin" ? "src/main/kotlin" : "src/main/java";
+		const testDir = lang === "kotlin" ? "src/test/kotlin" : "src/test/java";
+		const pkg = `com/example/${projectUnderscore}`;
+		return {
+			mainEntry: `${srcDir}/${pkg}/Application.${ext}`,
+			testEntry: `${testDir}/${pkg}/ApplicationTest.${ext}`,
+			modelsFile: `${srcDir}/${pkg}/model/`,
+			routesFile: `${srcDir}/${pkg}/controller/`,
+			handlersDir: `${srcDir}/${pkg}/service/`,
+			testModels: `${testDir}/${pkg}/model/`,
+			testApi: `${testDir}/${pkg}/controller/`,
+		};
+	}
+
+	if (lang === "go" || lang === "golang") {
+		return {
+			mainEntry: `cmd/${projectKebab}/main.go`,
+			testEntry: `cmd/${projectKebab}/main_test.go`,
+			modelsFile: `internal/models/models.go`,
+			routesFile: `internal/routes/routes.go`,
+			handlersDir: `internal/handlers/`,
+			testModels: `internal/models/models_test.go`,
+			testApi: `internal/routes/routes_test.go`,
+		};
+	}
+
+	if (lang === "rust") {
+		return {
+			mainEntry: `src/main.rs`,
+			testEntry: `tests/integration_test.rs`,
+			modelsFile: `src/models.rs`,
+			routesFile: `src/routes.rs`,
+			handlersDir: `src/handlers/`,
+			testModels: `tests/test_models.rs`,
+			testApi: `tests/test_api.rs`,
+		};
+	}
+
+	if (lang === "typescript" || lang === "javascript") {
+		const ext = lang === "typescript" ? "ts" : "js";
+		return {
+			mainEntry: `src/index.${ext}`,
+			testEntry: `src/__tests__/index.test.${ext}`,
+			modelsFile: `src/models.${ext}`,
+			routesFile: `src/routes.${ext}`,
+			handlersDir: `src/handlers/`,
+			testModels: `src/__tests__/models.test.${ext}`,
+			testApi: `src/__tests__/api.test.${ext}`,
+		};
+	}
+
+	if (lang === "csharp" || lang === "c#") {
+		return {
+			mainEntry: `src/${projectUnderscore}/Program.cs`,
+			testEntry: `tests/${projectUnderscore}.Tests/ProgramTest.cs`,
+			modelsFile: `src/${projectUnderscore}/Models/`,
+			routesFile: `src/${projectUnderscore}/Controllers/`,
+			handlersDir: `src/${projectUnderscore}/Services/`,
+			testModels: `tests/${projectUnderscore}.Tests/Models/`,
+			testApi: `tests/${projectUnderscore}.Tests/Controllers/`,
+		};
+	}
+
+	if (lang === "ruby") {
+		return {
+			mainEntry: `lib/${projectUnderscore}.rb`,
+			testEntry: `spec/${projectUnderscore}_spec.rb`,
+			modelsFile: `lib/${projectUnderscore}/models.rb`,
+			routesFile: `lib/${projectUnderscore}/routes.rb`,
+			handlersDir: `lib/${projectUnderscore}/handlers/`,
+			testModels: `spec/models_spec.rb`,
+			testApi: `spec/routes_spec.rb`,
+		};
+	}
+
+	// Python and fallback
+	return {
+		mainEntry: `${projectUnderscore}/main.py`,
+		testEntry: `tests/test_main.py`,
+		modelsFile: `${projectUnderscore}/models.py`,
+		routesFile: `${projectUnderscore}/routes.py`,
+		handlersDir: `${projectUnderscore}/handlers/`,
+		testModels: `tests/test_models.py`,
+		testApi: `tests/test_api.py`,
+	};
+}
