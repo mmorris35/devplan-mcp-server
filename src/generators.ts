@@ -12,6 +12,13 @@ import { getTemplate, PROJECT_TYPE_TASKS, findTemplate, type PhaseTemplate } fro
 import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
 import { generateReadmeDiagrams, formatDiagramsAsMarkdown } from "./readme-diagrams";
 
+/**
+ * Inline completion instruction for Haiku agent.
+ * Must be included in each subtask since Haiku only sees the current context.
+ */
+const COMPLETION_INSTRUCTION = `
+✅ **When Complete**: Change the subtask checkbox above from \`- [ ]\` to \`- [x]\` and fill in the Completion Notes.`;
+
 export interface BriefInput {
 	name: string;
 	projectType: string;
@@ -294,6 +301,7 @@ ${diagramsSection}
 - **Build**: N/A (setup)
 - **Branch**: feature/0-1-repo-setup
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -327,6 +335,7 @@ ${successCriteria}
 - **Build**: N/A
 - **Branch**: feature/0-1-repo-setup
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -365,6 +374,7 @@ ${lintingCriteria}
 - **Build**: (linter: pass/fail)
 - **Branch**: feature/0-2-dev-tools
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -400,6 +410,7 @@ ${testingCriteria}
 - **Build**: (test runner: pass/fail)
 - **Branch**: feature/0-2-dev-tools
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -509,6 +520,7 @@ ${featureList}
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 ${domainSubtasks}
@@ -553,6 +565,7 @@ ${domainSubtasks}
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -629,6 +642,7 @@ ${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and qu
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -684,6 +698,7 @@ ${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response form
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -739,6 +754,7 @@ ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -1627,6 +1643,7 @@ ${successCriteria}
 - **Build**: (ruff: pass/fail, mypy: pass/fail)
 - **Branch**: feature/${task.id}-${subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---`;
 						})
