@@ -12,6 +12,13 @@ import { getTemplate, PROJECT_TYPE_TASKS, findTemplate, type PhaseTemplate } fro
 import { getLanguageDefaults, LanguageDefaults } from "./language-defaults";
 import { generateReadmeDiagrams, formatDiagramsAsMarkdown } from "./readme-diagrams";
 
+/**
+ * Inline completion instruction for Haiku agent.
+ * Must be included in each subtask since Haiku only sees the current context.
+ */
+const COMPLETION_INSTRUCTION = `
+✅ **When Complete**: Change the subtask checkbox above from \`- [ ]\` to \`- [x]\` and fill in the Completion Notes.`;
+
 export interface BriefInput {
 	name: string;
 	projectType: string;
@@ -34,7 +41,7 @@ export interface BriefInput {
  */
 export interface TemplateKey {
 	projectType: "cli" | "web_app" | "api" | "library";
-	language: "python" | "typescript" | "javascript" | "go" | "rust" | "unknown";
+	language: DetectedLanguage; // Reuse the detected language type
 	variant?: "static" | "serverless" | "fullstack" | "minimal";
 }
 
@@ -53,29 +60,8 @@ export function resolveTemplateKey(brief: ProjectBrief): TemplateKey {
 	// Detect language from must_use tech stack
 	const detectedLang = detectLanguage(brief.mustUseTech);
 
-	// Map detected language to TemplateKey language type
-	let language: TemplateKey["language"];
-	switch (detectedLang) {
-		case "python":
-			language = "python";
-			break;
-		case "typescript":
-			language = "typescript";
-			break;
-		case "javascript":
-			language = "javascript";
-			break;
-		default:
-			// Check for Go indicators
-			const techLower = brief.mustUseTech.map((t) => t.toLowerCase()).join(" ");
-			if (techLower.includes("go") || techLower.includes("golang")) {
-				language = "go";
-			} else if (techLower.includes("rust") || techLower.includes("cargo")) {
-				language = "rust";
-			} else {
-				language = "unknown";
-			}
-	}
+	// Use detected language directly - types are aligned
+	const language = detectedLang;
 
 	// Detect variant (placeholder until detectVariant is implemented in 1.1.2)
 	const variant = detectVariant(brief);
@@ -315,6 +301,7 @@ ${diagramsSection}
 - **Build**: N/A (setup)
 - **Branch**: feature/0-1-repo-setup
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -348,6 +335,7 @@ ${successCriteria}
 - **Build**: N/A
 - **Branch**: feature/0-1-repo-setup
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -386,6 +374,7 @@ ${lintingCriteria}
 - **Build**: (linter: pass/fail)
 - **Branch**: feature/0-2-dev-tools
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -421,6 +410,7 @@ ${testingCriteria}
 - **Build**: (test runner: pass/fail)
 - **Branch**: feature/0-2-dev-tools
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -530,6 +520,7 @@ ${featureList}
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 ${domainSubtasks}
@@ -574,6 +565,7 @@ ${domainSubtasks}
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 
@@ -650,6 +642,7 @@ ${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and qu
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -705,6 +698,7 @@ ${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response form
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -760,6 +754,7 @@ ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join
 - **Build**: (pass/fail)
 - **Branch**: feature/1-1-core-module
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---
 `);
@@ -1648,6 +1643,7 @@ ${successCriteria}
 - **Build**: (ruff: pass/fail, mypy: pass/fail)
 - **Branch**: feature/${task.id}-${subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}
 - **Notes**: (any additional context)
+${COMPLETION_INSTRUCTION}
 
 ---`;
 						})
@@ -3330,7 +3326,8 @@ function groupRelatedFeatures(features: string[]): Array<{ name: string; items: 
 			}
 		} else {
 			// This is a regular feature - finalize previous group and start new one
-			if (currentGroup && currentGroup.items.length > 0) {
+			if (currentGroup) {
+				// Always push the previous group (features without endpoints are valid phases)
 				groups.push(currentGroup);
 			}
 			currentGroup = { name: trimmed, items: [] };

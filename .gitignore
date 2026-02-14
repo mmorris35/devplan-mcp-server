@@ -28,4 +28,11 @@ CLAUDE.md
 
 # Generated types
 worker-configuration.d.ts
-AGENTS.md\nHEARTBEAT.md\nIDENTITY.md\nSOUL.md\nTOOLS.md\nUSER.md
+
+# OpenClaw workspace files
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md

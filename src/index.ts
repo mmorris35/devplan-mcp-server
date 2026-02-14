@@ -82,6 +82,7 @@ interface Env {
 	SESSION_INACTIVITY_TTL_DAYS: string;
 	SESSION_ABSOLUTE_TTL_DAYS: string;
 	CLEANUP_CHECK_HOURS: string;
+	ENVIRONMENT?: string; // "staging" for staging environment
 	DEVPLAN_KV: KVNamespace;
 	MCP_OBJECT: DurableObjectNamespace;
 	// Cloudflare Analytics API (optional - for dashboard)
@@ -2235,8 +2236,8 @@ export default {
 		const isRootDomain = url.hostname === "devplanmcp.store";
 		const isWorkersDevDomain = url.hostname.endsWith(".workers.dev");
 
-		// Redirect workers.dev to MCP subdomain for MCP endpoints, root for others
-		if (isWorkersDevDomain) {
+		// Redirect workers.dev to custom domain (skip for staging environment)
+		if (isWorkersDevDomain && env.ENVIRONMENT !== "staging") {
 			const isMcpPath = url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp";
 			const targetDomain = isMcpPath ? "https://mcp.devplanmcp.store" : "https://devplanmcp.store";
 			const newUrl = new URL(url.pathname + url.search, targetDomain);
