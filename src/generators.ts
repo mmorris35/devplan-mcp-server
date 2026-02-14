@@ -34,7 +34,7 @@ export interface BriefInput {
  */
 export interface TemplateKey {
 	projectType: "cli" | "web_app" | "api" | "library";
-	language: "python" | "typescript" | "javascript" | "go" | "rust" | "unknown";
+	language: DetectedLanguage; // Reuse the detected language type
 	variant?: "static" | "serverless" | "fullstack" | "minimal";
 }
 
@@ -53,29 +53,8 @@ export function resolveTemplateKey(brief: ProjectBrief): TemplateKey {
 	// Detect language from must_use tech stack
 	const detectedLang = detectLanguage(brief.mustUseTech);
 
-	// Map detected language to TemplateKey language type
-	let language: TemplateKey["language"];
-	switch (detectedLang) {
-		case "python":
-			language = "python";
-			break;
-		case "typescript":
-			language = "typescript";
-			break;
-		case "javascript":
-			language = "javascript";
-			break;
-		default:
-			// Check for Go indicators
-			const techLower = brief.mustUseTech.map((t) => t.toLowerCase()).join(" ");
-			if (techLower.includes("go") || techLower.includes("golang")) {
-				language = "go";
-			} else if (techLower.includes("rust") || techLower.includes("cargo")) {
-				language = "rust";
-			} else {
-				language = "unknown";
-			}
-	}
+	// Use detected language directly - types are aligned
+	const language = detectedLang;
 
 	// Detect variant (placeholder until detectVariant is implemented in 1.1.2)
 	const variant = detectVariant(brief);
@@ -3330,7 +3309,8 @@ function groupRelatedFeatures(features: string[]): Array<{ name: string; items: 
 			}
 		} else {
 			// This is a regular feature - finalize previous group and start new one
-			if (currentGroup && currentGroup.items.length > 0) {
+			if (currentGroup) {
+				// Always push the previous group (features without endpoints are valid phases)
 				groups.push(currentGroup);
 			}
 			currentGroup = { name: trimmed, items: [] };
