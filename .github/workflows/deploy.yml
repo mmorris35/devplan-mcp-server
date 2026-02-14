@@ -25,10 +25,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Deploy to Staging
+      - name: Upload to Staging
+        id: upload
         run: |
-          npx wrangler versions upload --env staging
-          npx wrangler versions deploy --env staging --yes
+          OUTPUT=$(npx wrangler versions upload --env staging 2>&1)
+          echo "$OUTPUT"
+          VERSION_ID=$(echo "$OUTPUT" | grep "Worker Version ID:" | awk '{print $NF}')
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy to Staging
+        run: npx wrangler versions deploy "${{ steps.upload.outputs.version_id }}@100%" --env staging --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
