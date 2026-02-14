@@ -3481,6 +3481,7 @@ function getLanguageConfig(language: string, projectUnderscore: string, projectK
 	typeChecker: string;
 	packageInstall: string;
 	codeStyle: string;
+	completionExample: string;
 } {
 	const lang = language.toLowerCase();
 	
@@ -3519,9 +3520,14 @@ function getLanguageConfig(language: string, projectUnderscore: string, projectK
 - Use meaningful variable/method names
 - Add Javadoc/KDoc for public APIs
 - Max line length: 120 characters`,
+			completionExample: `- **Files Created**:
+  - \`src/main/java/com/example/${projectUnderscore}/service/ParserService.java\` (234 lines)
+  - \`src/test/java/com/example/${projectUnderscore}/service/ParserServiceTest.java\` (156 lines)
+- **Files Modified**:
+  - \`build.gradle\` (added new dependency)`,
 		};
 	}
-	
+
 	if (lang === "rust") {
 		return {
 			structure: `${projectKebab}/
@@ -3558,9 +3564,14 @@ cargo test test_name`,
 - Add doc comments with \`///\` for public items
 - Use \`Result<T, E>\` for fallible operations
 - Prefer owned types over references in public APIs`,
+			completionExample: `- **Files Created**:
+  - \`src/parser.rs\` (234 lines)
+  - \`tests/parser_test.rs\` (156 lines)
+- **Files Modified**:
+  - \`src/lib.rs\` (added parser module)`,
 		};
 	}
-	
+
 	if (lang === "go" || lang === "golang") {
 		return {
 			structure: `${projectKebab}/
@@ -3598,9 +3609,14 @@ go test -v ./...`,
 - Keep functions short and focused
 - Use interfaces for abstraction
 - Error handling: check errors explicitly`,
+			completionExample: `- **Files Created**:
+  - \`internal/parser/parser.go\` (234 lines)
+  - \`internal/parser/parser_test.go\` (156 lines)
+- **Files Modified**:
+  - \`cmd/${projectKebab}/main.go\` (added parser import)`,
 		};
 	}
-	
+
 	if (lang === "typescript" || lang === "javascript") {
 		return {
 			structure: `${projectKebab}/
@@ -3636,9 +3652,14 @@ npm test -- --watch`,
 - Avoid \`any\` - use \`unknown\` and narrow types
 - Prefer interfaces over type aliases for objects
 - Use async/await over raw Promises`,
+			completionExample: `- **Files Created**:
+  - \`src/parser.ts\` (234 lines)
+  - \`tests/parser.test.ts\` (156 lines)
+- **Files Modified**:
+  - \`src/index.ts\` (added parser export)`,
 		};
 	}
-	
+
 	if (lang === "csharp" || lang === "c#") {
 		return {
 			structure: `${projectKebab}/
@@ -3674,9 +3695,14 @@ dotnet test -v detailed`,
 - Use nullable reference types
 - Prefer records for data types
 - Use async/await throughout`,
+			completionExample: `- **Files Created**:
+  - \`src/${projectKebab}/Services/ParserService.cs\` (234 lines)
+  - \`tests/${projectKebab}.Tests/Services/ParserServiceTests.cs\` (156 lines)
+- **Files Modified**:
+  - \`src/${projectKebab}/Program.cs\` (registered parser service)`,
 		};
 	}
-	
+
 	// Default to Python
 	return {
 		structure: `${projectKebab}/
@@ -3713,6 +3739,11 @@ pytest --cov=${projectUnderscore} --cov-report=html`,
 - Type hints on all functions: \`def func(x: int) -> str:\`
 - Docstrings: Google style
 - Max line length: 100 characters`,
+		completionExample: `- **Files Created**:
+  - \`${projectUnderscore}/parser.py\` (234 lines)
+  - \`tests/test_parser.py\` (156 lines)
+- **Files Modified**:
+  - \`${projectUnderscore}/__init__.py\` (added parser import)`,
 	};
 }
 
@@ -3792,11 +3823,7 @@ ${langConfig.testCommands}
 \`\`\`markdown
 **Completion Notes:**
 - **Implementation**: Brief description of what was built
-- **Files Created**:
-  - \`${projectUnderscore}/parser.py\` (234 lines)
-  - \`tests/test_parser.py\` (156 lines)
-- **Files Modified**:
-  - \`${projectUnderscore}/__init__.py\` (added parser import)
+${langConfig.completionExample}
 - **Tests**: 12 unit tests (85% coverage)
 - **Build**: ✅ Success (all tests pass, linting clean)
 - **Branch**: feature/subtask-X-Y-Z
