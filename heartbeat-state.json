@@ -1,0 +1,17 @@
+{
+  "lastUpdate": "2026-02-13T18:04:00-08:00",
+  "activeWork": {
+    "branch": "fix/feature-grouping-146",
+    "status": "pr_ready",
+    "bugs": {
+      "completed": [130, 125, 126, 137, 138, 141, 146],
+      "remaining": [139, 140, 142]
+    }
+  },
+  "nextSteps": [
+    "Create PR for fix/feature-grouping-146",
+    "Fix language propagation (#139, #140)",
+    "Filter lessons by language (#142)"
+  ],
+  "notes": "Language defaults not propagating - getLanguageDefaults called but results not applied"
+}
