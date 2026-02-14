@@ -244,6 +244,9 @@ function generateMinimalPhase0(
 	replacePlaceholders: (text: string) => string,
 	diagramsMarkdown?: string
 ): string {
+	// Sanitize language for prose - don't show "unknown" in readable text
+	const languageDisplay = language === "unknown" ? "your" : language;
+	
 	const filesToCreate = langDefaults.filesToCreate.map((f) => `- \`${replacePlaceholders(f)}\``).join("\n");
 	const projectStructure = langDefaults.projectStructure.map((d) => `- [ ] ${replacePlaceholders(d)}`).join("\n");
 	const successCriteria = langDefaults.successCriteria.map((c) => `- [ ] ${replacePlaceholders(c)}`).join("\n");
@@ -259,7 +262,7 @@ function generateMinimalPhase0(
 
 	return `## Phase 0: Foundation
 
-**Goal**: Set up repository and project structure for ${language} ${projectType}
+**Goal**: Set up repository and project structure for ${languageDisplay} ${projectType}
 **Duration**: 1-2 days
 
 ### Task 0.1: Repository Setup
@@ -273,7 +276,7 @@ function generateMinimalPhase0(
 
 **Deliverables**:
 - [ ] Run \`git init\` to initialize repository
-- [ ] Create \`.gitignore\` with ${language} standard ignores
+- [ ] Create \`.gitignore\` with ${languageDisplay} standard ignores
 - [ ] Create \`README.md\` with project name, badges, and description
 - [ ] Add architecture diagram (Mermaid flowchart) showing main components
 - [ ] Add project-type specific diagram (command tree, endpoint map, page flow, or module structure)
@@ -361,7 +364,7 @@ ${successCriteria}
 ${lintingSetup}
 
 **Technology Decisions**:
-- Use standard linting tools for ${language}
+- Use standard linting tools for ${languageDisplay}
 - Configure for consistency across the project
 
 **Files to Create**:
@@ -395,7 +398,7 @@ ${lintingCriteria}
 ${testingSetup}
 
 **Technology Decisions**:
-- Use standard testing framework for ${language}
+- Use standard testing framework for ${languageDisplay}
 - Set up for test-driven development
 
 **Files to Create**:
@@ -461,7 +464,11 @@ function generateMinimalPhase1(
 
 	// Check if we have domain specs to generate specific subtasks
 	const hasDomainSpecs = domainSpecs && domainSpecs.length > 0;
-	const domainSubtasks = hasDomainSpecs ? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore) : "";
+	const domainResult = hasDomainSpecs 
+		? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore) 
+		: { text: "", nextSubtaskNum: 2 };
+	const domainSubtasks = domainResult.text;
+	const nextSubtaskNum = domainResult.nextSubtaskNum;
 
 	const templateNote = hasDomainSpecs
 		? `> **Domain specifications detected**: ${domainSpecs!.length} code block(s) with implementation details.
@@ -526,10 +533,10 @@ ${featureList}
 
 ---
 ${domainSubtasks}
-**Subtask 1.1.2: First Core Feature (Single Session)**
+**Subtask 1.1.${nextSubtaskNum}: First Core Feature (Single Session)**
 
 **Prerequisites**:
-- [x] 1.1.1: Main Entry Point
+- [x] 1.1.${nextSubtaskNum - 1}: ${nextSubtaskNum === 2 ? "Main Entry Point" : "Previous Subtask"}
 
 **Deliverables**:
 - [ ] Implement first core feature from the features list
@@ -581,12 +588,13 @@ ${domainSubtasks}
 /**
  * Generate domain-specific subtasks from brief specifications.
  * Creates specific subtasks for each schema table, API endpoint, pipeline step, etc.
+ * Returns both the generated text and the next available subtask number.
  */
 function generateDomainSubtasks(
 	domainSpecs: DomainSpecConfig[],
 	langDefaults: LanguageDefaults,
 	projectUnderscore: string
-): string {
+): { text: string; nextSubtaskNum: number } {
 	const subtasks: string[] = [];
 	let subtaskNum = 2; // Start after 1.1.1, before 1.1.2
 
@@ -759,7 +767,7 @@ ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join
 		}
 	}
 
-	return subtasks.join("\n");
+	return { text: subtasks.join("\n"), nextSubtaskNum: subtaskNum };
 }
 
 /**
@@ -1292,10 +1300,20 @@ function extractTechDetails(mustUse: string[]): {
 			result.database = "MySQL";
 		} else if (lower.includes("sqlite")) {
 			result.database = "SQLite";
+		} else if (lower.includes("h2")) {
+			result.database = "H2";
 		} else if (lower.includes("mongo")) {
 			result.database = "MongoDB";
 		} else if (lower.includes("dynamodb")) {
 			result.database = "DynamoDB";
+		} else if (lower.includes("redis")) {
+			result.database = "Redis";
+		} else if (lower.includes("cassandra")) {
+			result.database = "Cassandra";
+		} else if (lower.includes("oracle")) {
+			result.database = "Oracle";
+		} else if (lower.includes("mssql") || lower.includes("sql server")) {
+			result.database = "SQL Server";
 		}
 
 		// Deployment detection
@@ -1528,13 +1546,15 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
  * @param lessons - Optional lessons for success criteria injection
  * @param projectType - The project type
  * @param diagramsMarkdown - Optional pre-generated Mermaid diagrams for README
+ * @param language - The target language for filtering lessons
  */
 function renderTemplatePhases(
 	phaseTemplates: PhaseTemplate[],
 	brief: ProjectBrief,
 	lessons: Lesson[] | undefined,
 	projectType: string,
-	diagramsMarkdown?: string
+	diagramsMarkdown?: string,
+	language?: string
 ): string {
 	const phasesSection = phaseTemplates
 		.map((phase) => {
@@ -1571,7 +1591,8 @@ function renderTemplatePhases(
 									subtask.title,
 									subtask.deliverables,
 									lessons,
-									projectType
+									projectType,
+									language
 								);
 								if (relevantLessons.length > 0) {
 									lessonCriteria = generateLessonSuccessCriteria(relevantLessons).map((c) => `- [ ] ${c}`);
@@ -1707,7 +1728,7 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 
 	if (phaseTemplates) {
 		// Use specific template - render with diagrams injected
-		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType, diagramsMarkdown);
+		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType, diagramsMarkdown, templateKey.language);
 		progressSection = buildProgressSection(phaseTemplates, brief);
 	} else {
 		// No matching template - generate minimal scaffold
@@ -3284,6 +3305,46 @@ def test_file_not_found():
 \`\`\``;
 }
 
+/**
+ * Group related features together (e.g., API endpoints with their parent feature).
+ * Detects patterns like "POST /api/..." and groups them with preceding feature.
+ */
+function groupRelatedFeatures(features: string[]): Array<{ name: string; items: string[] }> {
+	const groups: Array<{ name: string; items: string[] }> = [];
+	let currentGroup: { name: string; items: string[] } | null = null;
+
+	const isApiEndpoint = (s: string): boolean => {
+		return /^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(s.trim());
+	};
+
+	for (const feature of features) {
+		const trimmed = feature.trim();
+		
+		if (isApiEndpoint(trimmed)) {
+			// This is an API endpoint - add to current group or create "API Endpoints" group
+			if (currentGroup) {
+				currentGroup.items.push(trimmed);
+			} else {
+				// No current group, create an API endpoints group
+				currentGroup = { name: "API Endpoints", items: [trimmed] };
+			}
+		} else {
+			// This is a regular feature - finalize previous group and start new one
+			if (currentGroup && currentGroup.items.length > 0) {
+				groups.push(currentGroup);
+			}
+			currentGroup = { name: trimmed, items: [] };
+		}
+	}
+
+	// Don't forget the last group
+	if (currentGroup) {
+		groups.push(currentGroup);
+	}
+
+	return groups;
+}
+
 function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectType?: string, language?: string): string {
 	if (brief.keyFeatures.length === 0) {
 		return "";
@@ -3292,7 +3353,7 @@ function generateFeaturePhases(brief: ProjectBrief, lessons?: Lesson[], projectT
 	// Generate lesson safeguards section if lessons exist
 	let lessonSection = "";
 	if (lessons && lessons.length > 0 && projectType) {
-		const relevantLessons = filterLessonsForProject(lessons, projectType);
+		const relevantLessons = filterLessonsForProject(lessons, projectType, false, language);
 		if (relevantLessons.length > 0) {
 			const criticalLessons = relevantLessons.filter(l => l.severity === "critical");
 			const warningLessons = relevantLessons.filter(l => l.severity === "warning");
@@ -3310,10 +3371,21 @@ ${lessonItems.join("\n")}
 		}
 	}
 
+	// Group related features (e.g., API endpoints with their parent feature)
+	const groupedFeatures = groupRelatedFeatures(brief.keyFeatures);
+	
 	// Start feature phases after foundation phases
 	const startPhase = 2;
-	const featureList = brief.keyFeatures
-		.map((f, i) => `- Phase ${startPhase + i}: ${f}`)
+	const featureList = groupedFeatures
+		.map((group, i) => {
+			const phaseNum = startPhase + i;
+			if (group.items.length > 0) {
+				// Feature with sub-items (e.g., endpoints)
+				const subItems = group.items.map(item => `    - ${item}`).join("\n");
+				return `- Phase ${phaseNum}: ${group.name}\n${subItems}`;
+			}
+			return `- Phase ${phaseNum}: ${group.name}`;
+		})
 		.join("\n");
 
 	const projectUnderscore = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -3343,7 +3415,7 @@ ${languageExample}
 
 ---
 
-### NOW WRITE PHASES ${startPhase}-${startPhase + brief.keyFeatures.length - 1}
+### NOW WRITE PHASES ${startPhase}-${startPhase + groupedFeatures.length - 1}
 
 For each feature, create a phase following the EXACT format above with:
 - Complete, copy-pasteable code (not placeholders)
@@ -3364,8 +3436,9 @@ function generateDeferredPhases(brief: ProjectBrief): string {
 		return "";
 	}
 
-	// Calculate the starting phase number (after MVP features)
-	const lastMvpPhaseNum = 2 + brief.keyFeatures.length - 1;
+	// Calculate the starting phase number (after grouped MVP features)
+	const groupedFeatures = groupRelatedFeatures(brief.keyFeatures);
+	const lastMvpPhaseNum = 2 + groupedFeatures.length - 1;
 
 	const deferredPhases = brief.niceToHaveFeatures.map((feature, index) => {
 		// Use X.5 notation to indicate post-MVP
@@ -3415,14 +3488,264 @@ The following phases are planned for v2, after MVP completion. They use Phase X.
 ${deferredPhases.join("\n\n")}`;
 }
 
+/**
+ * Get language-specific configuration for CLAUDE.md generation.
+ */
+function getLanguageConfig(language: string, projectUnderscore: string, projectKebab: string): {
+	structure: string;
+	techStack: string;
+	testCommands: string;
+	lintTool: string;
+	typeChecker: string;
+	packageInstall: string;
+	codeStyle: string;
+} {
+	const lang = language.toLowerCase();
+	
+	if (lang === "java" || lang === "kotlin") {
+		return {
+			structure: `${projectKebab}/
+├── src/
+│   ├── main/java/com/example/${projectUnderscore}/
+│   │   ├── Application.java
+│   │   └── ...
+│   └── test/java/com/example/${projectUnderscore}/
+│       └── ApplicationTest.java
+├── build.gradle (or pom.xml)
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+			techStack: `**Tech Stack:**
+- **Language**: ${lang === "kotlin" ? "Kotlin" : "Java"} ${lang === "kotlin" ? "1.9+" : "17+"}
+- **Build**: ${lang === "kotlin" ? "Gradle (Kotlin DSL)" : "Gradle or Maven"}
+- **Testing**: JUnit 5
+- **Linting**: Checkstyle or SpotBugs
+- **Framework**: Spring Boot (if applicable)`,
+			testCommands: `# All tests
+./gradlew test
+
+# With coverage
+./gradlew test jacocoTestReport
+
+# Specific test
+./gradlew test --tests "*ApplicationTest*"`,
+			lintTool: "checkstyle",
+			typeChecker: "Java/Kotlin compiler",
+			packageInstall: "./gradlew build",
+			codeStyle: `**${lang === "kotlin" ? "Kotlin" : "Java"} Style:**
+- Follow ${lang === "kotlin" ? "Kotlin coding conventions" : "Google Java Style Guide"}
+- Use meaningful variable/method names
+- Add Javadoc/KDoc for public APIs
+- Max line length: 120 characters`,
+		};
+	}
+	
+	if (lang === "rust") {
+		return {
+			structure: `${projectKebab}/
+├── src/
+│   ├── main.rs
+│   ├── lib.rs
+│   └── ...
+├── tests/
+│   └── integration_test.rs
+├── Cargo.toml
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+			techStack: `**Tech Stack:**
+- **Language**: Rust (stable toolchain)
+- **Build**: Cargo
+- **Testing**: cargo test (built-in)
+- **Linting**: clippy
+- **Formatting**: rustfmt`,
+			testCommands: `# All tests
+cargo test
+
+# With output
+cargo test -- --nocapture
+
+# Specific test
+cargo test test_name`,
+			lintTool: "clippy",
+			typeChecker: "Rust compiler",
+			packageInstall: "cargo build",
+			codeStyle: `**Rust Style:**
+- Follow Rust API Guidelines
+- Use \`#![deny(warnings)]\` in lib.rs
+- Add doc comments with \`///\` for public items
+- Use \`Result<T, E>\` for fallible operations
+- Prefer owned types over references in public APIs`,
+		};
+	}
+	
+	if (lang === "go" || lang === "golang") {
+		return {
+			structure: `${projectKebab}/
+├── cmd/${projectKebab}/
+│   └── main.go
+├── internal/
+│   └── ...
+├── pkg/
+│   └── ...
+├── go.mod
+├── go.sum
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+			techStack: `**Tech Stack:**
+- **Language**: Go 1.21+
+- **Build**: go build
+- **Testing**: go test
+- **Linting**: golangci-lint
+- **Formatting**: gofmt`,
+			testCommands: `# All tests
+go test ./...
+
+# With coverage
+go test -cover ./...
+
+# Verbose
+go test -v ./...`,
+			lintTool: "golangci-lint",
+			typeChecker: "Go compiler",
+			packageInstall: "go mod download",
+			codeStyle: `**Go Style:**
+- Follow Effective Go guidelines
+- Use gofmt for formatting
+- Keep functions short and focused
+- Use interfaces for abstraction
+- Error handling: check errors explicitly`,
+		};
+	}
+	
+	if (lang === "typescript" || lang === "javascript") {
+		return {
+			structure: `${projectKebab}/
+├── src/
+│   ├── index.ts
+│   └── ...
+├── tests/
+│   └── ...
+├── package.json
+├── tsconfig.json
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+			techStack: `**Tech Stack:**
+- **Language**: ${lang === "typescript" ? "TypeScript 5.0+" : "JavaScript (ES2020+)"}
+- **Runtime**: Node.js 18+
+- **Testing**: Vitest or Jest
+- **Linting**: ESLint
+- **Type Checking**: ${lang === "typescript" ? "TypeScript strict mode" : "JSDoc + TypeScript"}`,
+			testCommands: `# All tests
+npm test
+
+# With coverage
+npm test -- --coverage
+
+# Watch mode
+npm test -- --watch`,
+			lintTool: "ESLint",
+			typeChecker: "TypeScript",
+			packageInstall: "npm install",
+			codeStyle: `**TypeScript Style:**
+- Use strict TypeScript configuration
+- Avoid \`any\` - use \`unknown\` and narrow types
+- Prefer interfaces over type aliases for objects
+- Use async/await over raw Promises`,
+		};
+	}
+	
+	if (lang === "csharp" || lang === "c#") {
+		return {
+			structure: `${projectKebab}/
+├── src/
+│   └── ${projectUnderscore}/
+│       ├── Program.cs
+│       └── ${projectUnderscore}.csproj
+├── tests/
+│   └── ${projectUnderscore}.Tests/
+├── ${projectKebab}.sln
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+			techStack: `**Tech Stack:**
+- **Language**: C# 11+ / .NET 7+
+- **Build**: dotnet CLI
+- **Testing**: xUnit
+- **Linting**: dotnet format
+- **Type Checking**: C# compiler`,
+			testCommands: `# All tests
+dotnet test
+
+# With coverage
+dotnet test --collect:"XPlat Code Coverage"
+
+# Verbose
+dotnet test -v detailed`,
+			lintTool: "dotnet format",
+			typeChecker: "C# compiler",
+			packageInstall: "dotnet restore",
+			codeStyle: `**C# Style:**
+- Follow Microsoft C# coding conventions
+- Use nullable reference types
+- Prefer records for data types
+- Use async/await throughout`,
+		};
+	}
+	
+	// Default to Python
+	return {
+		structure: `${projectKebab}/
+├── ${projectUnderscore}/
+│   ├── __init__.py
+│   ├── cli.py
+│   └── ...
+├── tests/
+│   ├── __init__.py
+│   └── test_*.py
+├── pyproject.toml
+├── README.md
+├── CLAUDE.md
+└── DEVELOPMENT_PLAN.md`,
+		techStack: `**Tech Stack:**
+- **Language**: Python 3.11+
+- **CLI Framework**: Click 8.1+
+- **Testing**: pytest 7.4+, pytest-cov
+- **Linting**: ruff 0.1+
+- **Type Checking**: mypy 1.7+`,
+		testCommands: `# All tests
+pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing
+
+# Specific test file
+pytest tests/test_parser.py -v
+
+# With coverage report
+pytest --cov=${projectUnderscore} --cov-report=html`,
+		lintTool: "ruff",
+		typeChecker: "mypy",
+		packageInstall: `pip install -e ".[dev]"`,
+		codeStyle: `**Python Style:**
+- Follow PEP 8
+- Type hints on all functions: \`def func(x: int) -> str:\`
+- Docstrings: Google style
+- Max line length: 100 characters`,
+	};
+}
+
 export function generateClaudeMd(
 	briefContent: string,
 	language: string = "python",
 	testCoverage: number = 80
 ): string {
 	const brief = parseBrief(briefContent);
-	const isPython = language === "python";
+	const langDefaults = getLanguageDefaults(language);
 	const projectUnderscore = brief.projectName.toLowerCase().replace(/-/g, "_");
+	const projectKebab = brief.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+	
+	// Language-specific configuration
+	const langConfig = getLanguageConfig(language, projectUnderscore, projectKebab);
 
 	return `# CLAUDE.md - Project Rules for ${brief.projectName}
 
@@ -3447,19 +3770,7 @@ export function generateClaudeMd(
 
 **Project Structure:**
 \`\`\`
-${brief.projectName}/
-├── ${projectUnderscore}/              # Main package
-│   ├── __init__.py
-│   ├── cli.py                   # Click CLI commands
-│   └── ...                      # Feature modules
-├── tests/
-│   ├── __init__.py
-│   ├── test_*.py               # Test modules
-│   └── fixtures/               # Test data
-├── pyproject.toml              # Project metadata
-├── README.md
-├── CLAUDE.md                   # This file
-└── DEVELOPMENT_PLAN.md         # Development roadmap
+${langConfig.structure}
 \`\`\`
 
 **Creating Files:**
@@ -3482,25 +3793,14 @@ ${brief.projectName}/
 
 **Running Tests:**
 \`\`\`bash
-${isPython ? `# All tests
-pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing
-
-# Specific test file
-pytest tests/test_parser.py -v
-
-# With coverage report
-pytest --cov=${projectUnderscore} --cov-report=html` : `# All tests
-npm test
-
-# With coverage
-npm test -- --coverage`}
+${langConfig.testCommands}
 \`\`\`
 
 **Before Every Commit:**
 - [ ] All tests pass
 - [ ] Coverage >${testCoverage}%
-- [ ] Linting passes (${isPython ? "ruff" : "eslint"})
-- [ ] Type checking passes (${isPython ? "mypy" : "tsc"})
+- [ ] Linting passes (${langConfig.lintTool})
+- [ ] Type checking passes (${langConfig.typeChecker})
 
 ### 5. Completion Protocol
 
@@ -3538,26 +3838,12 @@ git commit -m "feat(parser): Implement markdown parser
 
 ### 6. Technology Stack
 
-${isPython ? `**Tech Stack:**
-- **Language**: Python 3.11+
-- **CLI Framework**: Click 8.1+
-- **Testing**: pytest 7.4+, pytest-cov
-- **Linting**: ruff 0.1+
-- **Type Checking**: mypy 1.7+
+${langConfig.techStack}
 
 **Installing Dependencies:**
 \`\`\`bash
-pip install -e ".[dev]"  # Editable install with dev dependencies
-\`\`\`` : `**Tech Stack:**
-- **Language**: TypeScript/Node.js
-- **Testing**: Jest or Vitest
-- **Linting**: ESLint + Prettier
-- **Type Checking**: TypeScript strict mode
-
-**Installing Dependencies:**
-\`\`\`bash
-npm install
-\`\`\``}
+${langConfig.packageInstall}
+\`\`\`
 
 ### 7. Error Handling
 
@@ -3578,124 +3864,29 @@ npm install
 
 ### 8. Code Quality Standards
 
-${isPython ? `**Python Style:**
-- Follow PEP 8
-- Type hints on all functions: \`def func(x: int) -> str:\`
-- Docstrings: Google style
-- Max line length: 100 characters
-- Use \`ruff\` for linting
-- Use \`mypy\` for type checking
+${langConfig.codeStyle}
 
-**Example Function:**
-\`\`\`python
-def parse_brief(brief_path: Path) -> ProjectBrief:
-    """Parse PROJECT_BRIEF.md file and extract requirements.
+**General Best Practices:**
+- Write self-documenting code with clear names
+- Keep functions focused and single-purpose
+- Handle errors explicitly - no silent failures
+- Add tests for all new functionality
 
-    Args:
-        brief_path: Path to PROJECT_BRIEF.md file
+### 9. Design Standards
 
-    Returns:
-        ProjectBrief object with all extracted fields
-
-    Raises:
-        FileNotFoundError: If brief file doesn't exist
-        ValueError: If brief is malformed or missing required fields
-
-    Example:
-        >>> brief = parse_brief(Path("PROJECT_BRIEF.md"))
-        >>> brief.project_name
-        '${brief.projectName}'
-    """
-    if not brief_path.exists():
-        raise FileNotFoundError(f"Brief file not found: {brief_path}")
-
-    # Implementation...
-\`\`\`
-
-**Imports:**
-- Standard library first
-- Third-party second
-- Local imports last
-- Alphabetical within each group
-
-**Prohibited:**
-- \`print()\` for output (use Click.echo or logging)
-- \`exit()\` (raise exceptions instead)
-- Bare \`except:\` (catch specific exceptions)
-- Global variables (use classes or pass parameters)` : `**TypeScript Style:**
-- Use strict mode
-- Type all function parameters and returns
-- Use interfaces for complex types
-- Max line length: 100 characters
-
-**Prohibited:**
-- \`console.log()\` in production (use proper logging)
-- \`any\` type without explicit justification
-- Ignoring Promise rejections`}
-
-### 9. CLI Design Standards
-
-${isPython ? `**Command Structure:**
-\`\`\`bash
-${brief.projectName.toLowerCase()} <command> [options] [arguments]
-\`\`\`
-
-**All commands must:**
-- Have \`--help\` text with examples
-- Use Click's option validation
-- Provide clear error messages
-- Support \`--verbose\` for debug output
-- Return proper exit codes (0=success, 1=error)
-
-**Example Command:**
-\`\`\`python
-@click.command()
-@click.argument('input_file', type=click.Path(exists=True))
-@click.option('-o', '--output', type=click.Path(), help='Output file path')
-@click.option('--verbose', is_flag=True, help='Enable verbose output')
-def convert(input_file: str, output: str | None, verbose: bool):
-    """Convert markdown file to PDF.
-
-    Example:
-        ${brief.projectName.toLowerCase()} convert README.md -o output.pdf
-    """
-    # Implementation...
-\`\`\`` : `**All commands should:**
-- Have clear help text
+**All features should:**
+- Have clear documentation
 - Validate inputs
 - Provide clear error messages
-- Return proper exit codes`}
+- Handle errors gracefully
+- Return proper exit/status codes
 
 ### 10. Build Verification
 
 **Before marking subtask complete:**
 
 \`\`\`bash
-${isPython ? `# Linting
-ruff check ${projectUnderscore} tests
-
-# Type checking
-mypy ${projectUnderscore}
-
-# Tests
-pytest tests/ -v --cov=${projectUnderscore} --cov-report=term-missing
-
-# Build package
-python -m build
-
-# Install and test CLI
-pip install -e .
-${brief.projectName.toLowerCase()} --help` : `# Linting
-npm run lint
-
-# Type checking
-npm run typecheck
-
-# Tests
-npm test
-
-# Build
-npm run build`}
+${langConfig.testCommands}
 \`\`\`
 
 **All must pass with no errors.**
@@ -3712,9 +3903,9 @@ npm run build`}
 ## Checklist: Ending a Session
 
 - [ ] All subtask checkboxes checked
-- [ ] All tests pass (${isPython ? "pytest" : "npm test"})
-- [ ] Linting clean (${isPython ? "ruff" : "eslint"})
-- [ ] Type checking clean (${isPython ? "mypy" : "tsc"})
+- [ ] All tests pass
+- [ ] Linting clean (${langConfig.lintTool})
+- [ ] Type checking clean (${langConfig.typeChecker})
 - [ ] Completion notes written
 - [ ] Git commit with semantic message
 - [ ] User notified
@@ -5068,20 +5259,89 @@ export function formatLesson(lesson: Lesson): string {
  * Filter lessons relevant to a specific project type.
  * By default, excludes archived lessons.
  */
+/**
+ * Infer language from lesson content for filtering.
+ * Returns null if language is ambiguous/universal.
+ */
+function inferLessonLanguage(lesson: Lesson): string | null {
+	const text = `${lesson.issue} ${lesson.rootCause} ${lesson.fix} ${lesson.pattern}`.toLowerCase();
+	
+	// Rust-specific indicators
+	if (text.includes("cargo") || text.includes("rocksdb") || text.includes("clippy") || 
+		text.includes(".rs") || text.includes("crate") || text.includes("tokio")) {
+		return "rust";
+	}
+	
+	// Python-specific indicators
+	if (text.includes("graph api") || text.includes("pytest") || text.includes("mypy") ||
+		text.includes("ruff") || text.includes("python") || text.includes(".py") ||
+		text.includes("pydantic") || text.includes("fastapi") || text.includes("async def")) {
+		return "python";
+	}
+	
+	// TypeScript/JavaScript indicators
+	if (text.includes("npm") || text.includes("eslint") || text.includes("typescript") ||
+		text.includes(".ts") || text.includes("node_modules") || text.includes("jest") ||
+		text.includes("vitest")) {
+		return "typescript";
+	}
+	
+	// Go indicators
+	if (text.includes("go mod") || text.includes("goroutine") || text.includes("go test") ||
+		text.includes(".go") || text.includes("golangci")) {
+		return "go";
+	}
+	
+	// Java/Kotlin indicators
+	if (text.includes("gradle") || text.includes("maven") || text.includes("junit") ||
+		text.includes(".java") || text.includes(".kt") || text.includes("spring")) {
+		return "java";
+	}
+	
+	return null; // Universal lesson
+}
+
 export function filterLessonsForProject(
 	lessons: Lesson[],
 	projectType: string,
-	includeArchived: boolean = false
+	includeArchived: boolean = false,
+	targetLanguage?: string
 ): Lesson[] {
 	const normalizedType = projectType.toLowerCase().replace(/[\s-]/g, "_");
+	const normalizedLang = targetLanguage?.toLowerCase();
+	
 	return lessons.filter(lesson => {
 		// Exclude archived lessons unless explicitly requested
 		if (!includeArchived && lesson.archived) {
 			return false;
 		}
-		// Empty projectTypes means applies to all
-		return lesson.projectTypes.length === 0 ||
+		
+		// Filter by project type
+		const matchesProjectType = lesson.projectTypes.length === 0 ||
 			lesson.projectTypes.some(t => t.toLowerCase().replace(/[\s-]/g, "_") === normalizedType);
+		
+		if (!matchesProjectType) {
+			return false;
+		}
+		
+		// Filter by inferred language if a target language is specified
+		if (normalizedLang) {
+			const lessonLang = inferLessonLanguage(lesson);
+			// Include if: no inferred language (universal) OR matches target
+			if (lessonLang !== null && lessonLang !== normalizedLang) {
+				// Allow related languages (java/kotlin, typescript/javascript)
+				const langGroups = [
+					["java", "kotlin"],
+					["typescript", "javascript"],
+				];
+				const targetGroup = langGroups.find(g => g.includes(normalizedLang));
+				if (!targetGroup || !targetGroup.includes(lessonLang)) {
+					return false;
+				}
+			}
+		}
+		
+		return true;
 	});
 }
 
@@ -5114,10 +5374,11 @@ export function filterLessonsBySeverity(
 export function generateLessonsSafeguards(
 	lessons: Lesson[],
 	projectType: string,
-	minSeverity?: Lesson["severity"]
+	minSeverity?: Lesson["severity"],
+	language?: string
 ): string {
-	// Filter by project type (excludes archived by default)
-	let relevantLessons = filterLessonsForProject(lessons, projectType);
+	// Filter by project type and language (excludes archived by default)
+	let relevantLessons = filterLessonsForProject(lessons, projectType, false, language);
 
 	// Apply severity filter if specified
 	if (minSeverity) {
@@ -5235,9 +5496,10 @@ export function findRelevantLessons(
 	subtaskTitle: string,
 	subtaskDeliverables: string[],
 	lessons: Lesson[],
-	projectType: string
+	projectType: string,
+	language?: string
 ): Lesson[] {
-	const filteredLessons = filterLessonsForProject(lessons, projectType);
+	const filteredLessons = filterLessonsForProject(lessons, projectType, false, language);
 	const subtaskCategories = categorizeSubtask(subtaskTitle, subtaskDeliverables);
 
 	return filteredLessons.filter(lesson => {
