@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+      - 'fix/**'
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
+  deploy-staging:
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +25,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Deploy to Cloudflare Workers
+      - name: Upload to Staging
+        id: upload
+        run: |
+          OUTPUT=$(npx wrangler versions upload --env staging 2>&1)
+          echo "$OUTPUT"
+          VERSION_ID=$(echo "$OUTPUT" | grep "Worker Version ID:" | awk '{print $NF}')
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy to Staging
+        run: npx wrangler versions deploy "${{ steps.upload.outputs.version_id }}@100%" --env staging --yes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Production
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
