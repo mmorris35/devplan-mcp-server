@@ -57,6 +57,18 @@ export function handleLanding(): Response {
     </div>
   </div>
 
+  <!-- Latest Improvements -->
+  <div class="max-w-4xl mx-auto px-6 pt-8 pb-2">
+    <div class="card rounded-lg p-4 border border-blue-500/20 text-sm">
+      <p class="text-blue-300 font-semibold mb-2">What's New <span class="text-gray-500 font-normal">— Feb 2026</span></p>
+      <ul class="text-gray-400 space-y-1">
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Full polyglot support</strong> — Plans, agents, and CLAUDE.md now generate with correct tooling for Java, Kotlin, C#, Rust, Go, and more</li>
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Smarter v2 roadmaps</strong> — Nice-to-have features get clean v2.1, v2.2 numbering under a dedicated roadmap section</li>
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Language-aware scaffolds</strong> — File paths, test commands, and project structure match your tech stack out of the box</li>
+      </ul>
+    </div>
+  </div>
+
   <div class="max-w-5xl mx-auto px-6 pb-20 pt-8">
     <!-- Problem/Solution -->
     <section class="mb-20">
