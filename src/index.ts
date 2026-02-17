@@ -74,6 +74,7 @@ import {
 import { getAdapter, type AdapterTarget } from "./adapters";
 import { INTERVIEW_QUESTIONS, listTemplates } from "./templates";
 import { exportWorkflow, exportMermaid } from "./workflow-export";
+import { generateWorktreeSetupScript, generateWorktreeAgentInstructions, generateMultiAgentClaudeMdSection } from "./worktree";
 
 // Extend Env interface for our bindings
 interface Env {
@@ -2200,6 +2201,88 @@ Copy the content below and save it as \`workflow.md\` in your project. It will r
 ---
 
 ${markdown}`,
+						},
+					],
+				};
+			}
+		);
+
+		// Tool 24: devplan_setup_worktrees - Multi-agent worktree setup
+		this.server.tool(
+			"devplan_setup_worktrees",
+			"Generate multi-agent worktree setup for parallel Claude Code development. Creates a setup script, worktree-aware agent instructions, and CLAUDE.md coordination section. Use when multiple agents need to work on different tasks simultaneously.",
+			{
+				brief_content: z.string().describe("PROJECT_BRIEF.md content or JSON brief"),
+				max_parallel: z.number().default(3).describe("Maximum parallel executor agents (default: 3)"),
+				base_port: z.number().default(3000).describe("Base port for dev servers (default: 3000)"),
+				port_stride: z.number().default(10).describe("Port offset between agents (default: 10)"),
+				isolate_database: z.boolean().default(true).describe("Use per-agent databases (default: true)"),
+			},
+			async ({ brief_content, max_parallel, base_port, port_stride, isolate_database }) => {
+				this.updateActivity();
+
+				const worktreeConfig = {
+					maxParallel: max_parallel,
+					basePort: base_port,
+					portStride: port_stride,
+					isolateDatabase: isolate_database,
+				};
+
+				const setupScript = generateWorktreeSetupScript(brief_content, worktreeConfig);
+				const agentInstructions = generateWorktreeAgentInstructions(brief_content, worktreeConfig);
+				const claudeMdSection = generateMultiAgentClaudeMdSection(brief_content, worktreeConfig);
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `# Multi-Agent Worktree Setup
+
+## 1. Create setup script
+
+Save to \`${setupScript.filePath}\` and make executable:
+
+\`\`\`bash
+mkdir -p scripts
+chmod +x ${setupScript.filePath}
+\`\`\`
+
+**Content for \`${setupScript.filePath}\`:**
+
+${setupScript.content}
+
+---
+
+## 2. Add to CLAUDE.md
+
+Append this section to your CLAUDE.md:
+
+${claudeMdSection}
+
+---
+
+## 3. Worktree-aware executor instructions
+
+Append this to your executor agent file (\`.claude/agents/{project}-executor.md\`):
+
+${agentInstructions}
+
+---
+
+## Quick Start
+
+\`\`\`bash
+# Set up ${max_parallel} parallel worktrees
+./scripts/setup-worktrees.sh
+
+# Launch agents in separate terminals
+cd ../{project}-wt/executor-0 && claude "execute subtask 1.1.1"
+cd ../{project}-wt/executor-1 && claude "execute subtask 1.2.1"
+
+# Merge completed work from main worktree
+git merge --squash wt/executor-0
+\`\`\`
+`,
 						},
 					],
 				};
