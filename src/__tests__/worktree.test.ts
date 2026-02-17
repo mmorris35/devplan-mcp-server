@@ -279,6 +279,32 @@ describe("gitWorkflow in parseBrief", () => {
 	});
 });
 
+describe("generatePlan with worktree", () => {
+	const WORKTREE_BRIEF = SAMPLE_BRIEF.replace(
+		"- **Team Size**: 1",
+		"- **Team Size**: 1\n- **Git Workflow**: worktree"
+	);
+
+	it("generates worktree-based git instructions in plan", () => {
+		const plan = generatePlan(WORKTREE_BRIEF);
+		// Should have worktree instructions, not branch
+		expect(plan).toContain("worktree");
+		expect(plan).toContain("Worktree Mode");
+		expect(plan).toContain("git worktree add");
+	});
+
+	it("generates branch-based instructions by default", () => {
+		const plan = generatePlan(SAMPLE_BRIEF);
+		expect(plan).toContain("ONE branch per TASK");
+		expect(plan).not.toContain("Worktree Mode");
+	});
+
+	it("includes conflict zone warnings in worktree mode", () => {
+		const plan = generatePlan(WORKTREE_BRIEF);
+		expect(plan).toContain("Conflict zones");
+	});
+});
+
 describe("generateExecutorAgent with worktree", () => {
 	const WORKTREE_BRIEF = SAMPLE_BRIEF.replace(
 		"- **Team Size**: 1",
