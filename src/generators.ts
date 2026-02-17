@@ -197,6 +197,8 @@ export interface MinimalScaffoldConfig {
 	diagramsMarkdown?: string;
 	/** Domain specifications from the brief (schemas, APIs, pipelines) */
 	domainSpecs?: DomainSpecConfig[];
+	/** Git workflow strategy */
+	gitWorkflow?: GitWorkflow;
 }
 
 /**
@@ -204,17 +206,18 @@ export interface MinimalScaffoldConfig {
  * Uses language defaults to provide appropriate project structure guidance.
  */
 export function generateMinimalScaffold(config: MinimalScaffoldConfig): string {
-	const { projectName, projectType, language, techStack, features, diagramsMarkdown, domainSpecs } = config;
+	const { projectName, projectType, language, techStack, features, diagramsMarkdown, domainSpecs, gitWorkflow } = config;
 	const langDefaults = getLanguageDefaults(language);
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+	const git = getGitInstructions(gitWorkflow || "branch");
 
 	// Helper to replace {project} placeholders
 	const replacePlaceholders = (text: string): string => {
 		return text.replace(/\{project\}/g, projectUnderscore);
 	};
 
-	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders, diagramsMarkdown);
-	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults, domainSpecs);
+	const phase0 = generateMinimalPhase0(projectName, projectType, language, langDefaults, replacePlaceholders, diagramsMarkdown, git);
+	const phase1 = generateMinimalPhase1(projectName, projectType, language, techStack, features, langDefaults, domainSpecs, git);
 
 	return phase0 + "\n\n---\n\n" + phase1;
 }
@@ -228,8 +231,10 @@ function generateMinimalPhase0(
 	language: string,
 	langDefaults: LanguageDefaults,
 	replacePlaceholders: (text: string) => string,
-	diagramsMarkdown?: string
+	diagramsMarkdown?: string,
+	git?: GitInstructions
 ): string {
+	const g = git || getGitInstructions("branch");
 	// Sanitize language for prose - don't show "unknown" in readable text
 	const languageDisplay = language === "unknown" ? "your" : language;
 	
@@ -253,7 +258,7 @@ function generateMinimalPhase0(
 
 ### Task 0.1: Repository Setup
 
-**Git**: Create branch \`feature/0-1-repo-setup\` when starting first subtask.
+${g.taskHeader("0.1", "0-1-repo-setup")}
 
 **Subtask 0.1.1: Initialize Repository (Single Session)**
 
@@ -299,7 +304,7 @@ ${diagramsSection}
 - **Files Modified**: None
 - **Tests**: N/A (setup)
 - **Build**: N/A (setup)
-- **Branch**: feature/0-1-repo-setup
+- **Branch**: ${g.locationRef("0.1", "0-1-repo-setup")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -333,7 +338,7 @@ ${successCriteria}
 - **Files Modified**: None
 - **Tests**: N/A
 - **Build**: N/A
-- **Branch**: feature/0-1-repo-setup
+- **Branch**: ${g.locationRef("0.1", "0-1-repo-setup")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -341,7 +346,7 @@ ${COMPLETION_INSTRUCTION}
 
 ### Task 0.2: Development Tools
 
-**Git**: Continue on branch \`feature/0-1-repo-setup\` or create \`feature/0-2-dev-tools\`
+${g.taskHeader("0.2", "0-2-dev-tools")}
 
 **Subtask 0.2.1: Linting and Formatting (Single Session)**
 
@@ -372,7 +377,7 @@ ${lintingCriteria}
 - **Files Modified**: (list)
 - **Tests**: N/A
 - **Build**: (linter: pass/fail)
-- **Branch**: feature/0-2-dev-tools
+- **Branch**: ${g.locationRef("0.2", "0-2-dev-tools")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -408,18 +413,13 @@ ${testingCriteria}
 - **Files Modified**: (list)
 - **Tests**: (X tests passing)
 - **Build**: (test runner: pass/fail)
-- **Branch**: feature/0-2-dev-tools
+- **Branch**: ${g.locationRef("0.2", "0-2-dev-tools")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
 ---
 
-### Task 0.1/0.2 Complete - Squash Merge
-- [ ] All subtasks complete (0.1.1 - 0.2.2)
-- [ ] All linting passes
-- [ ] Test framework runs
-- [ ] Squash merge to main
-- [ ] Delete feature branch`;
+${g.mergeChecklist("0.1/0.2", "0-foundation")}`;
 }
 
 /**
@@ -432,8 +432,10 @@ function generateMinimalPhase1(
 	techStack: TechStack,
 	features: string[],
 	langDefaults: LanguageDefaults,
-	domainSpecs?: DomainSpecConfig[]
+	domainSpecs?: DomainSpecConfig[],
+	git?: GitInstructions
 ): string {
+	const g = git || getGitInstructions("branch");
 	const projectUnderscore = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 	const featureList =
 		features.length > 0
@@ -455,7 +457,7 @@ function generateMinimalPhase1(
 	// Check if we have domain specs to generate specific subtasks
 	const hasDomainSpecs = domainSpecs && domainSpecs.length > 0;
 	const domainResult = hasDomainSpecs 
-		? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore) 
+		? generateDomainSubtasks(domainSpecs!, langDefaults, projectUnderscore, g) 
 		: { text: "", nextSubtaskNum: 2 };
 	const domainSubtasks = domainResult.text;
 	const nextSubtaskNum = domainResult.nextSubtaskNum;
@@ -481,7 +483,7 @@ ${featureList}
 
 ### Task 1.1: Core Module Implementation
 
-**Git**: Create branch \`feature/1-1-core-module\`
+${g.taskHeader("1.1", "1-1-core-module")}
 
 **Subtask 1.1.1: Main Entry Point (Single Session)**
 
@@ -518,7 +520,7 @@ ${featureList}
 - **Files Modified**: (list)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
+- **Branch**: ${g.locationRef("1.1", "1-1-core-module")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -563,18 +565,13 @@ ${domainSubtasks}
 - **Files Modified**: (list)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
+- **Branch**: ${g.locationRef("1.1", "1-1-core-module")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
 ---
 
-### Task 1.1 Complete - Squash Merge
-- [ ] All subtasks complete
-- [ ] All tests pass
-- [ ] Linting passes
-- [ ] Squash merge to main
-- [ ] Delete feature branch`;
+${g.mergeChecklist("1.1", "1-1-core-module")}`;
 }
 
 /**
@@ -585,8 +582,10 @@ ${COMPLETION_INSTRUCTION}
 function generateDomainSubtasks(
 	domainSpecs: DomainSpecConfig[],
 	langDefaults: LanguageDefaults,
-	projectUnderscore: string
+	projectUnderscore: string,
+	git?: GitInstructions
 ): { text: string; nextSubtaskNum: number } {
+	const g = git || getGitInstructions("branch");
 	const subtasks: string[] = [];
 	let subtaskNum = 2; // Start after 1.1.1, before 1.1.2
 
@@ -640,7 +639,7 @@ ${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and qu
 - **Files Modified**: (list)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
+- **Branch**: ${g.locationRef("1.1", "1-1-core-module")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -696,7 +695,7 @@ ${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response form
 - **Files Modified**: (list)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
+- **Branch**: ${g.locationRef("1.1", "1-1-core-module")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -752,7 +751,7 @@ ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join
 - **Files Modified**: (list)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
+- **Branch**: ${g.locationRef("1.1", "1-1-core-module")}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -1889,6 +1888,7 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 			features: brief.keyFeatures,
 			diagramsMarkdown: diagramsMarkdown,
 			domainSpecs: brief.domainSpecs,
+			gitWorkflow: brief.gitWorkflow,
 		});
 
 		// For minimal scaffold, generate a simpler progress section
