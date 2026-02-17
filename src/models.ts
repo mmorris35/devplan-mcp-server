@@ -61,6 +61,8 @@ export const ProjectBriefSchema = z.object({
 	deliverables: z.array(z.string()).default([]),
 	/** Domain specifications extracted from code blocks */
 	domainSpecs: z.array(DomainSpecSchema).default([]),
+	/** Git workflow strategy: "branch" (default checkout-based) or "worktree" (parallel worktrees) */
+	gitWorkflow: z.enum(["branch", "worktree"]).default("branch"),
 });
 
 export type ProjectBrief = z.infer<typeof ProjectBriefSchema>;

@@ -5,6 +5,12 @@ import {
 	generateMultiAgentClaudeMdSection,
 	DEFAULT_WORKTREE_CONFIG,
 } from "../worktree";
+import {
+	getGitInstructions,
+	generatePlan,
+	generateExecutorAgent,
+	parseBrief,
+} from "../generators";
 
 const SAMPLE_BRIEF = `# PROJECT_BRIEF.md
 
@@ -182,5 +188,112 @@ describe("worktree", () => {
 			expect(DEFAULT_WORKTREE_CONFIG.isolateDatabase).toBe(true);
 			expect(DEFAULT_WORKTREE_CONFIG.lockStrategy).toBe("advisory");
 		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Integration tests: gitWorkflow option in generators
+// ---------------------------------------------------------------------------
+
+describe("getGitInstructions", () => {
+	describe("branch mode (default)", () => {
+		const git = getGitInstructions("branch");
+
+		it("generates branch-based task header", () => {
+			const header = git.taskHeader("1.1", "1-1-core-module");
+			expect(header).toContain("Create branch");
+			expect(header).toContain("feature/1-1-core-module");
+		});
+
+		it("generates branch location ref", () => {
+			expect(git.locationRef("1.1", "1-1-core")).toBe("feature/1-1-core");
+		});
+
+		it("generates squash merge checklist", () => {
+			const checklist = git.mergeChecklist("1.1", "1-1-core-module");
+			expect(checklist).toContain("Squash Merge");
+			expect(checklist).toContain("git merge --squash");
+			expect(checklist).toContain("git branch -d");
+		});
+
+		it("generates branch conventions section", () => {
+			const section = git.conventionsSection("my-project");
+			expect(section).toContain("ONE branch per TASK");
+			expect(section).toContain("git checkout -b");
+		});
+	});
+
+	describe("worktree mode", () => {
+		const git = getGitInstructions("worktree");
+
+		it("generates worktree-based task header", () => {
+			const header = git.taskHeader("1.1", "1-1-core-module");
+			expect(header).toContain("worktree");
+			expect(header).toContain("1-1-core-module");
+			expect(header).not.toContain("Create branch");
+		});
+
+		it("generates worktree location ref", () => {
+			const ref = git.locationRef("1.1", "1-1-core");
+			expect(ref).toContain("task/1-1-core");
+			expect(ref).toContain("worktree");
+		});
+
+		it("generates worktree merge checklist", () => {
+			const checklist = git.mergeChecklist("1.1", "1-1-core-module");
+			expect(checklist).toContain("Merge from Worktree");
+			expect(checklist).toContain("git worktree remove");
+			expect(checklist).toContain("Rebase any dependent worktrees");
+		});
+
+		it("generates worktree conventions section", () => {
+			const section = git.conventionsSection("my-project");
+			expect(section).toContain("Worktree Mode");
+			expect(section).toContain("git worktree add");
+			expect(section).toContain("Conflict zones");
+			expect(section).toContain("Parallel execution");
+			expect(section).not.toContain("git checkout -b");
+		});
+
+		it("generates worktree executor workflow", () => {
+			const workflow = git.executorWorkflow("my-project");
+			expect(workflow).toContain("worktree");
+			expect(workflow).toContain("DO NOT");
+		});
+	});
+});
+
+describe("gitWorkflow in parseBrief", () => {
+	it("defaults to branch when not specified", () => {
+		const brief = parseBrief(SAMPLE_BRIEF);
+		expect(brief.gitWorkflow).toBe("branch");
+	});
+
+	it("parses worktree workflow from brief", () => {
+		const briefWithWorktree = SAMPLE_BRIEF.replace(
+			"- **Team Size**: 1",
+			"- **Team Size**: 1\n- **Git Workflow**: worktree"
+		);
+		const brief = parseBrief(briefWithWorktree);
+		expect(brief.gitWorkflow).toBe("worktree");
+	});
+});
+
+describe("generateExecutorAgent with worktree", () => {
+	const WORKTREE_BRIEF = SAMPLE_BRIEF.replace(
+		"- **Team Size**: 1",
+		"- **Team Size**: 1\n- **Git Workflow**: worktree"
+	);
+
+	it("appends worktree addendum when workflow is worktree", () => {
+		const result = generateExecutorAgent(WORKTREE_BRIEF, "typescript");
+		expect(result.content).toContain("WORKTREE MODE ACTIVE");
+		expect(result.content).toContain("DO NOT");
+		expect(result.content).toContain("git checkout");
+	});
+
+	it("does not append worktree addendum for branch mode", () => {
+		const result = generateExecutorAgent(SAMPLE_BRIEF, "typescript");
+		expect(result.content).not.toContain("WORKTREE MODE ACTIVE");
 	});
 });

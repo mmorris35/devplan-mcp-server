@@ -985,6 +985,7 @@ export function parseBrief(content: string): ProjectBrief {
 		useCases: [],
 		deliverables: [],
 		domainSpecs,
+		gitWorkflow: extractField("Git Workflow") === "worktree" ? "worktree" as const : "branch" as const,
 	};
 }
 
@@ -1532,6 +1533,152 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
 	return null;
 }
 
+// ---------------------------------------------------------------------------
+// Git workflow instruction helpers
+// ---------------------------------------------------------------------------
+
+export type GitWorkflow = "branch" | "worktree";
+
+interface GitInstructions {
+	/** Task-level "Git:" line */
+	taskHeader(taskId: string, taskSlug: string): string;
+	/** Branch/worktree name for completion notes */
+	locationRef(taskId: string, subtaskSlug: string): string;
+	/** Task completion checklist */
+	mergeChecklist(taskId: string, taskSlug: string): string;
+	/** CLAUDE.md git conventions section */
+	conventionsSection(projectName: string): string;
+	/** Executor agent git workflow */
+	executorWorkflow(projectName: string): string;
+}
+
+function branchInstructions(): GitInstructions {
+	return {
+		taskHeader: (taskId, taskSlug) =>
+			`**Git**: Create branch \`feature/${taskSlug}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.`,
+		locationRef: (_taskId, subtaskSlug) =>
+			`feature/${subtaskSlug}`,
+		mergeChecklist: (taskId, taskSlug) =>
+			`### Task ${taskId} Complete - Squash Merge
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${taskSlug}\`
+- [ ] Delete branch: \`git branch -d feature/${taskSlug}\``,
+		conventionsSection: (projectName) =>
+			`### Git Conventions
+
+- **ONE branch per TASK** (e.g., \`feature/1-2-${projectName.toLowerCase()}-core\`)
+- **One commit per SUBTASK** within the task branch
+- **Squash merge** when all subtasks in a task are complete
+- Create branch when starting first subtask of a task
+- Branch naming: \`feature/{phase}-{task}-{description}\`
+
+**Workflow:**
+\`\`\`bash
+# Starting a task
+git checkout -b feature/1-2-user-auth
+
+# After each subtask
+git add .
+git commit -m "feat(scope): subtask description"
+
+# After all subtasks complete
+git push -u origin feature/1-2-user-auth
+# Create PR, squash merge to main, delete branch
+\`\`\``,
+		executorWorkflow: (_projectName) =>
+			`4. **Check git state**:
+   - Verify correct branch for the TASK (not subtask)
+   - Create branch if starting a new task: \`feature/{phase}-{task}-{description}\``,
+	};
+}
+
+function worktreeInstructions(): GitInstructions {
+	return {
+		taskHeader: (taskId, taskSlug) =>
+			`**Git**: Work in worktree \`../{project}-worktrees/${taskSlug}/\`. If it doesn't exist: \`git worktree add ../{project}-worktrees/${taskSlug} -b task/${taskSlug} main\`. Commit after each subtask.`,
+		locationRef: (_taskId, subtaskSlug) =>
+			`task/${subtaskSlug} (worktree)`,
+		mergeChecklist: (taskId, taskSlug) =>
+			`### Task ${taskId} Complete - Merge from Worktree
+- [ ] All subtasks complete
+- [ ] All tests pass
+- [ ] From main worktree: \`git merge --squash task/${taskSlug}\`
+- [ ] Commit: \`git commit -m "feat: complete task ${taskId}"\`
+- [ ] Remove worktree: \`git worktree remove ../{project}-worktrees/${taskSlug}\`
+- [ ] Delete branch: \`git branch -D task/${taskSlug}\`
+- [ ] Rebase any dependent worktrees: \`cd ../{project}-worktrees/{dep} && git rebase main\``,
+		conventionsSection: (projectName) => {
+			const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+			return `### Git Conventions (Worktree Mode)
+
+This project uses **git worktrees** for parallel task execution. Each task gets its own directory.
+
+**Layout:**
+\`\`\`
+${slug}/                          ← main worktree (stable, merge target)
+${slug}-worktrees/
+├── 0-1-repo-setup/               ← Task 0.1 worktree
+├── 1-1-core-module/              ← Task 1.1 worktree (Agent A)
+├── 1-2-data-layer/               ← Task 1.2 worktree (Agent B)
+└── 2-1-api-endpoints/            ← Task 2.1 worktree (Agent C)
+\`\`\`
+
+**Rules:**
+- **ONE worktree per TASK** — named \`{phase}-{task}-{description}\`
+- **ONE commit per SUBTASK** within the worktree
+- **Never modify the main worktree directly** — it's the merge target
+- **Merge order follows the dependency graph** — don't merge a task before its dependencies
+
+**Workflow:**
+\`\`\`bash
+# Setup worktree for a task
+git worktree add ../${slug}-worktrees/1-2-user-auth -b task/1-2-user-auth main
+
+# Work in the worktree
+cd ../${slug}-worktrees/1-2-user-auth
+# ... implement subtasks, commit after each ...
+
+# When task complete — merge from main worktree
+cd ${slug}/
+git merge --squash task/1-2-user-auth
+git commit -m "feat: complete task 1.2 - User Auth"
+git worktree remove ../${slug}-worktrees/1-2-user-auth
+git branch -D task/1-2-user-auth
+
+# Update downstream worktrees
+cd ../${slug}-worktrees/2-1-api-endpoints
+git rebase main
+\`\`\`
+
+**Parallel execution:**
+\`\`\`bash
+# Terminal 1                          # Terminal 2
+cd ${slug}-worktrees/1-1-core/        cd ${slug}-worktrees/1-2-data/
+claude "execute subtask 1.1.1"        claude "execute subtask 1.2.1"
+\`\`\`
+
+**Conflict zones** (modify from main worktree only):
+- Lock files (\`package-lock.json\`, \`Cargo.lock\`, etc.)
+- CI/CD configs (\`.github/workflows/\`)
+- Shared environment files (\`.env\`)
+- Database migration files (merge sequentially)`;
+		},
+		executorWorkflow: (projectName) => {
+			const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+			return `4. **Check worktree state**:
+   - Verify you are in the correct worktree directory for this TASK
+   - If no worktree exists: \`git worktree add ../${slug}-worktrees/{task-slug} -b task/{task-slug} main\`
+   - **DO NOT** create sub-branches within the worktree
+   - **DO NOT** merge or rebase — the orchestrator handles that from main`;
+		},
+	};
+}
+
+export function getGitInstructions(workflow: GitWorkflow): GitInstructions {
+	return workflow === "worktree" ? worktreeInstructions() : branchInstructions();
+}
+
 /**
  * Render phase templates to markdown.
  * Extracted from generatePlan() to support both template and minimal scaffold paths.
@@ -1542,6 +1689,7 @@ function getSubtaskTitle(id: string, phases: PhaseTemplate[], projectName: strin
  * @param projectType - The project type
  * @param diagramsMarkdown - Optional pre-generated Mermaid diagrams for README
  * @param language - The target language for filtering lessons
+ * @param gitWorkflow - Git workflow strategy ("branch" or "worktree")
  */
 function renderTemplatePhases(
 	phaseTemplates: PhaseTemplate[],
@@ -1549,13 +1697,15 @@ function renderTemplatePhases(
 	lessons: Lesson[] | undefined,
 	projectType: string,
 	diagramsMarkdown?: string,
-	language?: string
+	language?: string,
+	gitWorkflow?: GitWorkflow
 ): string {
+	const git = getGitInstructions(gitWorkflow || brief.gitWorkflow || "branch");
 	const phasesSection = phaseTemplates
 		.map((phase) => {
 			const tasksSection = phase.tasks
 				.map((task) => {
-					const branchName = `${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
+					const taskSlug = `${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
 					const subtasksSection = task.subtasks
 						.map((subtask) => {
 							const deliverables = subtask.deliverables
@@ -1641,7 +1791,7 @@ ${successCriteria}
   - (filename)
 - **Tests**: (X tests, Y% coverage)
 - **Build**: (ruff: pass/fail, mypy: pass/fail)
-- **Branch**: feature/${task.id}-${subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}
+- **Branch**: ${git.locationRef(task.id, `${task.id}-${subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`)}
 - **Notes**: (any additional context)
 ${COMPLETION_INSTRUCTION}
 
@@ -1651,15 +1801,11 @@ ${COMPLETION_INSTRUCTION}
 
 					return `### Task ${task.id}: ${task.title}
 
-**Git**: Create branch \`feature/${branchName}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.
+${git.taskHeader(task.id, taskSlug)}
 
 ${subtasksSection}
 
-### Task ${task.id} Complete - Squash Merge
-- [ ] All subtasks complete
-- [ ] All tests pass
-- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${branchName}\`
-- [ ] Delete branch: \`git branch -d feature/${branchName}\``;
+${git.mergeChecklist(task.id, taskSlug)}`;
 				})
 				.join("\n\n");
 
@@ -1724,7 +1870,7 @@ export function generatePlan(briefContent: string, lessons?: Lesson[]): string {
 
 	if (phaseTemplates) {
 		// Use specific template - render with diagrams injected
-		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType, diagramsMarkdown, templateKey.language);
+		foundationSection = renderTemplatePhases(phaseTemplates, brief, lessons, projectType, diagramsMarkdown, templateKey.language, brief.gitWorkflow);
 		progressSection = buildProgressSection(phaseTemplates, brief);
 	} else {
 		// No matching template - generate minimal scaffold
@@ -1823,39 +1969,13 @@ ${deferredPhasesSection}
 
 ## Git Workflow
 
-### Branch Strategy
-- **ONE branch per TASK** (e.g., \`feature/1-2-${brief.projectName.toLowerCase()}-core\`)
-- **NO branches for individual subtasks** - subtasks are commits within the task branch
-- Create branch when starting first subtask of a task
-- Branch naming: \`feature/{phase}-{task}-{description}\`
+${getGitInstructions(brief.gitWorkflow || "branch").conventionsSection(brief.projectName)}
 
 ### Commit Strategy
 - **One commit per subtask** with semantic message
 - Format: \`feat(scope): description\` or \`fix(scope): description\`
 - Types: \`feat\`, \`fix\`, \`refactor\`, \`test\`, \`docs\`, \`chore\`
 - Example: \`feat(parser): implement markdown parsing with GFM support\`
-
-### Merge Strategy
-- **Squash merge when task is complete** (all subtasks done)
-- PR required for production branches
-- Delete feature branch after merge
-
-### Workflow Example
-\`\`\`bash
-# Starting Task 1.2 (first subtask is 1.2.1)
-git checkout -b feature/1-2-user-auth
-
-# After completing subtask 1.2.1
-git add . && git commit -m "feat(auth): implement user model"
-
-# After completing subtask 1.2.2
-git add . && git commit -m "feat(auth): add password hashing"
-
-# After completing subtask 1.2.3 (task complete)
-git add . && git commit -m "feat(auth): add login endpoint"
-git push -u origin feature/1-2-user-auth
-# Create PR, squash merge to main, delete branch
-\`\`\`
 
 ---
 
@@ -4856,6 +4976,32 @@ The agent will:
 
 *Generated by DevPlan MCP Server*
 `;
+
+	// Append worktree addendum if worktree mode
+	if (brief.gitWorkflow === "worktree") {
+		const worktreeAddendum = `
+
+## ⚠️ WORKTREE MODE ACTIVE
+
+This project uses git worktrees for parallel execution. The standard branch
+instructions above are OVERRIDDEN by the following rules:
+
+${getGitInstructions("worktree").executorWorkflow(brief.projectName)}
+
+### Worktree Rules
+- You are working in a **worktree directory**, not the main repo
+- **DO NOT** run \`git checkout\` — you'll break the worktree
+- **DO NOT** merge or rebase — the orchestrator handles that
+- **DO NOT** modify lock files (package-lock.json, Cargo.lock)
+- Commit directly to your worktree branch
+- When done, report completion — the main session merges your work
+
+### Port/Resource Isolation
+If a \`.env.local\` or \`.env.agent\` file exists, source it for port assignments.
+Never hardcode ports — other agents may be running in parallel.
+`;
+		return { content: content + worktreeAddendum, filePath };
+	}
 
 	return { content, filePath };
 }
