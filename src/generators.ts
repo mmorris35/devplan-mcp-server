@@ -1946,6 +1946,14 @@ ${lessonSection}${techStack}
 
 These features should be structured into detailed, executable phases based on dependencies and implementation order. Each phase should include specific deliverables, file paths, and verification commands.
 
+### Git Interleaving (Required)
+
+Git commands must be **inline in every subtask**, not in a separate section:
+
+- **First subtask of a task**: Start with \`git checkout -b feature/{phase}-{task}-{description}\`
+- **Every subtask**: End with \`git add -A && git commit -m "type(scope): description [X.Y.Z]"\`
+- **Last subtask of a task**: Include squash merge workflow after the final commit
+
 ---
 `;
 }
