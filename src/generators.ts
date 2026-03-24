@@ -277,8 +277,6 @@ function generateMinimalPhase0(
 
 ### Task 0.1: Repository Setup
 
-**Git**: Create branch \`feature/0-1-repo-setup\` when starting first subtask.
-
 **Subtask 0.1.1: Initialize Repository (Single Session)**
 
 **Prerequisites**:
@@ -286,13 +284,14 @@ function generateMinimalPhase0(
 
 **Deliverables**:
 - [ ] Run \`git init\` to initialize repository
+- [ ] Run \`git checkout -b feature/0-1-repo-setup\`
 - [ ] Create \`.gitignore\` with ${languageDisplay} standard ignores
 - [ ] Create \`README.md\` with project name, badges, and description
 - [ ] Add architecture diagram (Mermaid flowchart) showing main components
 - [ ] Add project-type specific diagram (command tree, endpoint map, page flow, or module structure)
 - [ ] Include installation and usage sections
 - [ ] Create \`LICENSE\` file (MIT recommended)
-- [ ] Make initial commit
+- [ ] \`git add -A && git commit -m "chore: initial repository setup [0.1.1]"\`
 
 **Technology Decisions**:
 - Use MIT license for open-source compatibility
@@ -312,19 +311,8 @@ ${diagramsSection}
 - [ ] README.md has \`# ${projectName}\` heading
 - [ ] README.md has architecture diagram in \`\`\`mermaid code block
 - [ ] README.md has installation section
-- [ ] First commit exists with message "chore: initial repository setup"
-- [ ] \`git status\` shows clean working tree
-
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: None
-- **Tests**: N/A (setup)
-- **Build**: N/A (setup)
-- **Branch**: feature/0-1-repo-setup
-- **Notes**: (any additional context)
+- [ ] Commit exists with message "chore: initial repository setup [0.1.1]"
+- [ ] On branch \`feature/0-1-repo-setup\`
 
 ---
 
@@ -348,27 +336,32 @@ ${filesToCreate}
 **Success Criteria**:
 ${successCriteria}
 
+**Git**: \`git add -A && git commit -m "feat(setup): add project structure [0.1.2]"\`
+
 ---
 
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: None
-- **Tests**: N/A
-- **Build**: N/A
-- **Branch**: feature/0-1-repo-setup
-- **Notes**: (any additional context)
+### Task 0.1 Complete — Squash Merge
+
+\`\`\`bash
+git push -u origin feature/0-1-repo-setup
+git checkout main && git pull origin main
+git merge --squash feature/0-1-repo-setup
+git commit -m "chore: repository setup and project structure"
+git push origin main
+git branch -d feature/0-1-repo-setup
+git push origin --delete feature/0-1-repo-setup
+\`\`\`
 
 ---
 
 ### Task 0.2: Development Tools
 
-**Git**: Continue on branch \`feature/0-1-repo-setup\` or create \`feature/0-2-dev-tools\`
-
 **Subtask 0.2.1: Linting and Formatting (Single Session)**
 
 **Prerequisites**:
 - [x] 0.1.2: Project Structure
+
+**Git**: \`git checkout main && git pull origin main && git checkout -b feature/0-2-dev-tools\`
 
 **Deliverables**:
 ${lintingSetup}
@@ -386,16 +379,7 @@ ${lintingSetup}
 **Success Criteria**:
 ${lintingCriteria}
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: N/A
-- **Build**: (linter: pass/fail)
-- **Branch**: feature/0-2-dev-tools
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "chore(lint): configure linting and formatting [0.2.1]"\`
 
 ---
 
@@ -421,25 +405,21 @@ ${testingSetup}
 **Success Criteria**:
 ${testingCriteria}
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests passing)
-- **Build**: (test runner: pass/fail)
-- **Branch**: feature/0-2-dev-tools
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "chore(test): configure testing framework [0.2.2]"\`
 
 ---
 
-### Task 0.1/0.2 Complete - Squash Merge
-- [ ] All subtasks complete (0.1.1 - 0.2.2)
-- [ ] All linting passes
-- [ ] Test framework runs
-- [ ] Squash merge to main
-- [ ] Delete feature branch`;
+### Task 0.2 Complete — Squash Merge
+
+\`\`\`bash
+git push -u origin feature/0-2-dev-tools
+git checkout main && git pull origin main
+git merge --squash feature/0-2-dev-tools
+git commit -m "chore: foundation setup - repo structure, linting, testing"
+git push origin main
+git branch -d feature/0-2-dev-tools
+git push origin --delete feature/0-2-dev-tools
+\`\`\``;
 }
 
 /**
@@ -503,12 +483,12 @@ ${featureList}
 
 ### Task 1.1: Core Module Implementation
 
-**Git**: Create branch \`feature/1-1-core-module\`
-
 **Subtask 1.1.1: Main Entry Point (Single Session)**
 
 **Prerequisites**:
 - [x] 0.2.2: Testing Setup
+
+**Git**: \`git checkout main && git pull origin main && git checkout -b feature/1-1-core-module\`
 
 **Deliverables**:
 - [ ] Create main entry point file (\`${filePaths.mainEntry}\`)
@@ -532,16 +512,7 @@ ${featureList}
 - [ ] Can run/import the module without errors
 - [ ] At least one unit test exists and passes
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "feat(core): add main entry point [1.1.1]"\`
 
 ---
 ${domainSubtasks}
@@ -551,12 +522,12 @@ ${domainSubtasks}
 - [x] 1.1.${nextSubtaskNum - 1}: ${nextSubtaskNum === 2 ? "Main Entry Point" : "Previous Subtask"}
 
 **Deliverables**:
-- [ ] Implement first core feature from the features list
+- [ ] Implement first core feature from the features list above
 - [ ] Add error handling for edge cases
 - [ ] Write comprehensive unit tests
 - [ ] Update README with usage instructions
 
-> **Claude**: Reference the first feature from the "Core Features to Implement" section above.
+> Reference the first feature from the "Core Features to Implement" section above.
 > Write complete, working code - not pseudocode or placeholders.
 
 **Technology Decisions**:
@@ -576,25 +547,21 @@ ${domainSubtasks}
 - [ ] Tests achieve >80% coverage for the feature
 - [ ] README documents how to use the feature
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "feat(core): implement first core feature [1.1.${nextSubtaskNum}]"\`
 
 ---
 
-### Task 1.1 Complete - Squash Merge
-- [ ] All subtasks complete
-- [ ] All tests pass
-- [ ] Linting passes
-- [ ] Squash merge to main
-- [ ] Delete feature branch`;
+### Task 1.1 Complete — Squash Merge
+
+\`\`\`bash
+git push -u origin feature/1-1-core-module
+git checkout main && git pull origin main
+git merge --squash feature/1-1-core-module
+git commit -m "feat(core): complete core module implementation"
+git push origin main
+git branch -d feature/1-1-core-module
+git push origin --delete feature/1-1-core-module
+\`\`\``;
 }
 
 /**
@@ -653,16 +620,7 @@ ${allSchemaItems.map(item => `- [ ] \`${item.name}\` table can be created and qu
 - [ ] All column types match the specification exactly
 - [ ] Tests verify schema structure
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "feat(db): implement database schema [1.1.${subtaskNum}]"\`
 
 ---
 `);
@@ -708,16 +666,7 @@ ${allApiItems.map(item => `- [ ] \`${item.name}\` returns expected response form
 - [ ] All endpoints handle error cases
 - [ ] Integration tests pass for each endpoint
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "feat(api): implement API endpoints [1.1.${subtaskNum}]"\`
 
 ---
 `);
@@ -763,16 +712,7 @@ ${allPipelineItems.map(item => `- [ ] ${item.name} completes successfully`).join
 - [ ] Pipeline handles failures gracefully
 - [ ] End-to-end test verifies complete flow
 
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**: (list with line counts)
-- **Files Modified**: (list)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (pass/fail)
-- **Branch**: feature/1-1-core-module
-- **Notes**: (any additional context)
+**Git**: \`git add -A && git commit -m "feat(pipeline): implement processing pipeline [1.1.${subtaskNum}]"\`
 
 ---
 `);
@@ -1575,7 +1515,7 @@ function renderTemplatePhases(
 				.map((task) => {
 					const branchName = `${task.id}-${task.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
 					const subtasksSection = task.subtasks
-						.map((subtask) => {
+						.map((subtask, subtaskIndex) => {
 							const deliverables = subtask.deliverables
 								.map((d) => `- [ ] ${replaceTemplatePlaceholders(d, brief.projectName)}`)
 								.join("\n");
@@ -1632,11 +1572,22 @@ function renderTemplatePhases(
 							const diagramsSection =
 								subtask.id === "0.1.1" && diagramsMarkdown ? `\n${diagramsMarkdown}\n` : "";
 
-							return `**Subtask ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)} (Single Session)**
+							// Git: branch creation for first subtask, commit for every subtask
+						// Skip for 0.1.1 (repo init) — it handles its own git in deliverables
+						const isRepoInit = subtask.id === "0.1.1";
+						const branchCreation = subtaskIndex === 0 && !isRepoInit
+							? `\n**Git**: \`git checkout main && git pull origin main && git checkout -b feature/${branchName}\`\n`
+							: "";
+						const commitScope = subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 15).replace(/-+$/, "");
+						const commitLine = isRepoInit
+							? `\n**Git**: \`git checkout -b feature/${branchName}\``
+							: `\n**Git**: \`git add -A && git commit -m "feat(${commitScope}): ${replaceTemplatePlaceholders(subtask.title, brief.projectName).toLowerCase()} [${subtask.id}]"\``;
+
+						return `**Subtask ${subtask.id}: ${replaceTemplatePlaceholders(subtask.title, brief.projectName)} (Single Session)**
 
 **Prerequisites**:
 ${prerequisite}
-
+${branchCreation}
 **Deliverables**:
 ${deliverables}
 ${techDecisions}
@@ -1648,19 +1599,7 @@ ${filesToModify}
 ${diagramsSection}
 **Success Criteria**:
 ${successCriteria}
-
----
-
-**Completion Notes**:
-- **Implementation**: (describe what was done)
-- **Files Created**:
-  - (filename) - (line count) lines
-- **Files Modified**:
-  - (filename)
-- **Tests**: (X tests, Y% coverage)
-- **Build**: (ruff: pass/fail, mypy: pass/fail)
-- **Branch**: feature/${task.id}-${subtask.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}
-- **Notes**: (any additional context)
+${commitLine}
 
 ---`;
 						})
@@ -1668,15 +1607,19 @@ ${successCriteria}
 
 					return `### Task ${task.id}: ${task.title}
 
-**Git**: Create branch \`feature/${branchName}\` when starting first subtask. Commit after each subtask. Squash merge to main when task complete.
-
 ${subtasksSection}
 
-### Task ${task.id} Complete - Squash Merge
-- [ ] All subtasks complete
-- [ ] All tests pass
-- [ ] Squash merge to main: \`git checkout main && git merge --squash feature/${branchName}\`
-- [ ] Delete branch: \`git branch -d feature/${branchName}\``;
+### Task ${task.id} Complete — Squash Merge
+
+\`\`\`bash
+git push -u origin feature/${branchName}
+git checkout main && git pull origin main
+git merge --squash feature/${branchName}
+git commit -m "feat: complete task ${task.id} - ${task.title.toLowerCase()}"
+git push origin main
+git branch -d feature/${branchName}
+git push origin --delete feature/${branchName}
+\`\`\``;
 				})
 				.join("\n\n");
 
