@@ -60,11 +60,11 @@ export function handleLanding(): Response {
   <!-- Latest Improvements -->
   <div class="max-w-4xl mx-auto px-6 pt-8 pb-2">
     <div class="card rounded-lg p-4 border border-blue-500/20 text-sm">
-      <p class="text-blue-300 font-semibold mb-2">What's New <span class="text-gray-500 font-normal">— Feb 2026</span></p>
+      <p class="text-blue-300 font-semibold mb-2">What's New <span class="text-gray-500 font-normal">— Mar 2026</span></p>
       <ul class="text-gray-400 space-y-1">
-        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Full polyglot support</strong> — Plans, agents, and CLAUDE.md now generate with correct tooling for Java, Kotlin, C#, Rust, Go, and more</li>
-        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Smarter v2 roadmaps</strong> — Nice-to-have features get clean v2.1, v2.2 numbering under a dedicated roadmap section</li>
-        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Language-aware scaffolds</strong> — File paths, test commands, and project structure match your tech stack out of the box</li>
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Smarter scaffolding</strong> — Foundation phases generated, feature phases left for your agent to structure based on actual project understanding</li>
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">Inline git workflow</strong> — Every subtask includes branch creation, commit commands, and squash merge steps inline</li>
+        <li><span class="text-green-400 mr-1">+</span> <strong class="text-gray-300">LLM-neutral output</strong> — Plans work with any AI coding agent, not just Claude</li>
       </ul>
     </div>
   </div>
@@ -151,7 +151,7 @@ export function handleLanding(): Response {
         <div class="text-center">
           <div class="benefit-icon mb-4">⚡</div>
           <h3 class="text-xl font-semibold text-white mb-2">Faster Development</h3>
-          <p class="text-gray-400">Haiku executes plans mechanically while Sonnet verifies. You focus on what matters.</p>
+          <p class="text-gray-400">Executor agents implement plans mechanically while verifier agents check the work. You focus on what matters.</p>
         </div>
         <div class="text-center">
           <div class="benefit-icon mb-4">🔄</div>
@@ -199,17 +199,17 @@ export function handleLanding(): Response {
         <div class="card rounded-xl p-6 text-center">
           <div class="text-3xl font-bold text-purple-400 mb-2">2</div>
           <h3 class="font-semibold text-white mb-2">Plan</h3>
-          <p class="text-gray-400 text-sm">Generates a scaffold, then enhances it with complete code.</p>
+          <p class="text-gray-400 text-sm">Generates foundation phases and a feature list. Your agent structures the rest.</p>
         </div>
         <div class="card rounded-xl p-6 text-center">
           <div class="text-3xl font-bold text-green-400 mb-2">3</div>
           <h3 class="font-semibold text-white mb-2">Validate</h3>
-          <p class="text-gray-400 text-sm">Checks the plan is complete and ready for mechanical execution.</p>
+          <p class="text-gray-400 text-sm">Checks the plan is complete, with inline git and ready for execution.</p>
         </div>
         <div class="card rounded-xl p-6 text-center">
           <div class="text-3xl font-bold text-orange-400 mb-2">4</div>
           <h3 class="font-semibold text-white mb-2">Execute</h3>
-          <p class="text-gray-400 text-sm">Haiku implements with live progress tracking. Sonnet verifies. Lessons captured.</p>
+          <p class="text-gray-400 text-sm">Agent implements with live progress tracking. Verifier checks. Lessons captured.</p>
         </div>
       </div>
     </section>
@@ -266,13 +266,13 @@ export function handleLanding(): Response {
         <form id="testimonial-form" class="max-w-xl mx-auto space-y-6">
           <div>
             <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Name or Nickname</label>
-            <input type="text" id="name" name="entry.2051456297" required
+            <input type="text" id="name" name="entry.47937761" required
               class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition"
               placeholder="Your name, handle, or favorite igneous rock...">
           </div>
           <div>
             <label for="testimonial" class="block text-sm font-medium text-gray-300 mb-2">Your Experience</label>
-            <textarea id="testimonial" name="entry.1732259482" required rows="4"
+            <textarea id="testimonial" name="entry.1892905737" required rows="4"
               class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition resize-none"
               placeholder="How has DevPlan helped you? What do you like about it?"></textarea>
           </div>
@@ -280,11 +280,11 @@ export function handleLanding(): Response {
             <label class="block text-sm font-medium text-gray-300 mb-2">May we feature your testimonial on this page?</label>
             <div class="flex gap-6">
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="entry.49694324" value="Yes" required class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
+                <input type="radio" name="entry.345091127" value="Yes" required class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
                 <span class="text-gray-300">Yes</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="entry.49694324" value="No" class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
+                <input type="radio" name="entry.345091127" value="No" class="text-purple-500 focus:ring-purple-500 bg-gray-800 border-gray-700">
                 <span class="text-gray-300">No</span>
               </label>
             </div>
@@ -305,7 +305,7 @@ export function handleLanding(): Response {
         e.preventDefault();
         const form = e.target;
         const formData = new FormData(form);
-        fetch('https://docs.google.com/forms/d/e/1FAIpQLSdge_JLhEze0nALzv9xnKqEtM9kWOLkN-w-VArwgPGesu08jg/formResponse', {
+        fetch('https://docs.google.com/forms/d/e/1FAIpQLScRDHW97YywDR4A0iS3xsYR_WlJPfm_gh23LzSLskLQIBFi9A/formResponse', {
           method: 'POST',
           body: formData,
           mode: 'no-cors'

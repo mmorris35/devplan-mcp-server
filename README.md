@@ -9,13 +9,13 @@
 
 > **The Problem**: AI coding assistants often lose context, skip steps, or produce inconsistent code across sessions.
 >
-> **The Solution**: DevPlan creates detailed, Haiku-executable development plans with built-in validation, lessons learned, and issue remediation workflows.
+> **The Solution**: DevPlan creates detailed, agent-executable development plans with built-in validation, lessons learned, and inline git workflows.
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Haiku-Executable Plans** | Plans so detailed that Claude Haiku can execute them mechanically |
+| **Agent-Executable Plans** | Plans so detailed that any LLM coding agent can execute them mechanically |
 | **Built-in Validation** | Validates plans are complete before execution begins |
 | **Real-Time Progress Tracking** | Integrates with Claude Code's Task tools for live visibility |
 | **Lessons Learned** | Captures issues from verification and injects them into future plans |
@@ -59,7 +59,7 @@ That's it. DevPlan will guide Claude through the entire process.
 
 ## The DevPlan Workflow
 
-DevPlan uses a **scaffold → enhance → validate** workflow that ensures every plan is Haiku-executable before implementation begins.
+DevPlan uses a **scaffold → enhance → validate** workflow that ensures every plan is agent-executable before implementation begins.
 
 ```mermaid
 flowchart LR
@@ -76,8 +76,8 @@ flowchart LR
     end
 
     subgraph Execution["⚡ Execution"]
-        F --> G[Haiku Executes]
-        G --> H[Sonnet Verifies]
+        F --> G[Agent Executes]
+        G --> H[Agent Verifies]
     end
 
     subgraph Learning["🧠 Learning"]
@@ -94,16 +94,16 @@ flowchart LR
 
 1. **Interview** → DevPlan asks questions to understand your project
 2. **Brief** → Creates a structured PROJECT_BRIEF.md with requirements
-3. **Generate Scaffold** → `devplan_generate_plan` creates a starting template
-4. **Enhance with Code** → Claude (Opus/Sonnet) fills in complete, copy-pasteable code
-5. **Validate** → `devplan_validate_plan` checks the plan is Haiku-executable
-6. **Execute** → Haiku implements each subtask mechanically
-7. **Verify** → Sonnet tries to break the implementation
+3. **Generate Scaffold** → `devplan_generate_plan` creates foundation phases + a feature list
+4. **Enhance with Code** → Your AI agent structures feature phases and fills in complete, copy-pasteable code
+5. **Validate** → `devplan_validate_plan` checks the plan is agent-executable
+6. **Execute** → Executor agent implements each subtask with inline git commands
+7. **Verify** → Verifier agent tries to break the implementation
 8. **Learn** → Issues become lessons for future projects
 
 ### Validation Ensures Quality
 
-The validation step checks that plans are truly Haiku-executable:
+The validation step checks that plans are truly executable:
 
 - ✅ Complete code blocks (not pseudocode or placeholders)
 - ✅ All imports included in code blocks
@@ -242,14 +242,14 @@ See [docs/ADAPTERS.md](/docs/ADAPTERS.md) for a detailed comparison of each targ
 |------|---------|
 | `devplan_generate_plan` | Generate DEVELOPMENT_PLAN.md scaffold with validation instructions |
 | `devplan_generate_claude_md` | Generate CLAUDE.md scaffold |
-| `devplan_generate_executor` | Generate Haiku-powered executor agent with Task tool integration |
-| `devplan_generate_verifier` | Generate Sonnet-powered verifier agent with Task tool integration |
+| `devplan_generate_executor` | Generate executor agent with Task tool integration |
+| `devplan_generate_verifier` | Generate verifier agent with Task tool integration |
 
 ### Validation & Execution
 
 | Tool | Purpose |
 |------|---------|
-| `devplan_validate_plan` | Validate plan structure and Haiku-executability |
+| `devplan_validate_plan` | Validate plan structure and agent-executability |
 | `devplan_get_subtask` | Get specific subtask details by ID |
 | `devplan_update_progress` | Mark subtasks complete with notes |
 | `devplan_progress_summary` | Get completion stats and next actions |
@@ -286,9 +286,9 @@ Convert GitHub issues into structured remediation tasks — perfect for bug fixe
 | Without DevPlan | With DevPlan |
 |-----------------|--------------|
 | Context lost between sessions | Plans preserve full context |
-| Inconsistent code quality | Haiku follows exact specifications |
+| Inconsistent code quality | Executor agents follow exact specifications |
 | Same mistakes repeated | Lessons learned system prevents recurrence |
-| No verification step | Sonnet actively tries to break the code |
+| No verification step | Verifier agents actively try to break the code |
 | Bugs found in production | Issues caught before release |
 | Plans need interpretation | Validated plans are copy-paste ready |
 
