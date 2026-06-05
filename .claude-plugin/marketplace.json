@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "devplan",
-      "source": ".",
+      "source": "./plugins/devplan",
       "description": "DevPlan skill — interview, brief, Haiku-executable plans, executor/verifier agents. Runs fully local, no MCP server dependency.",
       "version": "1.0.0"
     }
