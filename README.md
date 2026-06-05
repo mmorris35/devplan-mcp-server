@@ -11,6 +11,93 @@
 >
 > **The Solution**: DevPlan creates detailed, agent-executable development plans with built-in validation, lessons learned, and inline git workflows.
 
+---
+
+## NEW — Install as a Skill (No MCP Server Required)
+
+DevPlan is now available as a **standalone Claude Code skill** — no MCP server, no network dependency, no SSE timeouts. The entire DevPlan methodology runs locally as a first-class plugin.
+
+### Install
+
+**Step 1** — Add this repo as a plugin marketplace:
+
+```bash
+/plugin marketplace add mmorris35/devplan-mcp-server
+```
+
+**Step 2** — Install the plugin at user scope (available across all projects):
+
+```bash
+/plugin install devplan@mmorris35 --scope user
+```
+
+**Step 3** — Reload plugins to activate:
+
+```bash
+/reload-plugins
+```
+
+### Usage
+
+Invoke the skill directly:
+
+```
+/devplan
+```
+
+Or use specific sub-commands:
+
+```
+/devplan brief          — Create or parse a PROJECT_BRIEF.md
+/devplan plan           — Generate a Haiku-executable DEVELOPMENT_PLAN.md
+/devplan agents         — Generate executor (Haiku) and verifier (Sonnet) agents
+/devplan claude-md      — Generate a project CLAUDE.md
+/devplan validate       — Check plan structure and Haiku-executability
+/devplan progress       — Show completion status
+/devplan export mermaid — Generate a Mermaid flowchart of the plan
+/devplan issue <number> — Convert a GitHub issue to a remediation task
+/devplan implement      — Kickoff the build with executor + verifier agents
+```
+
+Or just describe what you need — Claude will invoke the skill automatically:
+
+```
+"Help me plan a CLI tool for managing dotfiles"
+"Create a development plan for this project"
+"Validate my development plan"
+```
+
+### What's Included
+
+```
+skills/devplan/
+├── SKILL.md                 — Core methodology, interview flow, dispatch
+├── references/
+│   ├── templates.md         — Brief/plan/CLAUDE.md templates (CLI, web app, API, library)
+│   ├── validation.md        — Structure + Haiku-executability rules + battle-tested lessons
+│   ├── agents.md            — Executor and verifier agent generation patterns
+│   └── workflows.md         — Mermaid/ReactFlow export + progress tracking
+├── scripts/
+│   ├── validate-plan.sh     — Structural validation (standalone)
+│   └── check-haiku.sh       — Haiku-executability checker (standalone)
+└── examples/
+    └── hello-cli-plan.md    — Gold standard reference plan
+```
+
+### Skill vs MCP Server
+
+| | Skill (NEW) | MCP Server |
+|---|---|---|
+| **Network** | None required | SSE connection to Cloudflare |
+| **Reliability** | Always works | Subject to SSE timeouts |
+| **Lessons system** | Use [Nellie](https://github.com/mmorris35/nellie) or your own | Built-in KV store |
+| **Install** | `/plugin install` | `claude mcp add` |
+| **Validation scripts** | Standalone bash | Server-side |
+
+Both options are fully supported. The skill is recommended for reliability; the MCP server adds the lessons learned system and usage analytics.
+
+---
+
 ## Key Features
 
 | Feature | Description |

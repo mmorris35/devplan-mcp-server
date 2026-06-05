@@ -1,0 +1,13 @@
+{
+  "name": "devplan",
+  "description": "Development plan builder — interview, brief, Haiku-executable plans, executor/verifier agents. No MCP dependency.",
+  "version": "1.0.0",
+  "keywords": [
+    "devplan",
+    "planning",
+    "development",
+    "haiku",
+    "executor",
+    "verifier"
+  ]
+}

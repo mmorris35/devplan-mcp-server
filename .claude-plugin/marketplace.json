@@ -1,0 +1,14 @@
+{
+  "name": "mmorris35",
+  "owner": {
+    "name": "Mike Morris"
+  },
+  "plugins": [
+    {
+      "name": "devplan",
+      "source": ".",
+      "description": "DevPlan skill — interview, brief, Haiku-executable plans, executor/verifier agents. Runs fully local, no MCP server dependency.",
+      "version": "1.0.0"
+    }
+  ]
+}
