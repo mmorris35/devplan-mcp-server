@@ -1,0 +1,12 @@
+{
+  "name": "beercan-bridge",
+  "description": "Beer Can channel bridge — replaces Telegram plugin with stateless REST long-poll for agent wake notifications. Polls Beer Can gateway for inbound Telegram messages and emits claude/channel notifications.",
+  "version": "1.0.0",
+  "keywords": [
+    "channel",
+    "telegram",
+    "beercan",
+    "mcp",
+    "bridge"
+  ]
+}
