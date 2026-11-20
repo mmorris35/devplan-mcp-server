@@ -35,7 +35,7 @@ id = "e54b4971273c4ce19ddee2e47a6e50af"
 
 [[durable_objects.bindings]]
 name = "MCP_OBJECT"
-class_name = "DevPlanMCP"
+class_name = "DevPlanMCPSession"
 
 [[migrations]]
 tag = "v1"
@@ -53,13 +53,12 @@ new_sqlite_classes = ["DevPlanMCP"]
 
 # 2026-11-20: drop the 1.35M never-deleted session objects (60 GB SQLite storage, Mike "devplan fix go").
 # From here on each session expires itself (SESSION_TTL_HOURS, src/session-expiry.ts).
+# Cloudflare refuses deleted_classes while a binding still names the class (code 10061), so the
+# binding moves to a new class name in the same migration: zero downtime, old storage dropped.
 [[migrations]]
 tag = "v4"
+new_sqlite_classes = ["DevPlanMCPSession"]
 deleted_classes = ["DevPlanMCP"]
-
-[[migrations]]
-tag = "v5"
-new_sqlite_classes = ["DevPlanMCP"]
 
 # =============================================================================
 # Secrets (add via: wrangler secret put <NAME>)
@@ -90,7 +89,7 @@ id = "0fb386b51fb74e7d89b606c313410a8f"
 
 [[env.staging.durable_objects.bindings]]
 name = "MCP_OBJECT"
-class_name = "DevPlanMCP"
+class_name = "DevPlanMCPSession"
 
 # Fresh migrations for staging (no delete needed - new worker)
 [[env.staging.migrations]]
@@ -100,8 +99,5 @@ new_sqlite_classes = ["DevPlanMCP"]
 # 2026-11-20: drop the 44k never-deleted staging session objects (1.98 GB)
 [[env.staging.migrations]]
 tag = "v2"
+new_sqlite_classes = ["DevPlanMCPSession"]
 deleted_classes = ["DevPlanMCP"]
-
-[[env.staging.migrations]]
-tag = "v3"
-new_sqlite_classes = ["DevPlanMCP"]

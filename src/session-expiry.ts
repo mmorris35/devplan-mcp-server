@@ -1,5 +1,5 @@
 /**
- * Session expiry for DevPlanMCP Durable Objects.
+ * Session expiry for DevPlanMCPSession Durable Objects.
  *
  * The agents SDK creates one SQLite-backed Durable Object per MCP session and never deletes it,
  * so storage only grows (60 GB / 1.35M objects by 2026-11-20). Each session therefore gets ONE
