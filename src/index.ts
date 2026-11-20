@@ -93,7 +93,7 @@ interface Env {
 	CF_ZONE_ID: string;
 }
 
-export class DevPlanMCP extends McpAgent {
+export class DevPlanMCPSession extends McpAgent {
 	server = new McpServer({
 		name: "DevPlan",
 		version: "1.0.0",
@@ -2326,9 +2326,9 @@ export default {
 			// Route to appropriate handler
 			let response: Response;
 			if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-				response = await DevPlanMCP.serveSSE("/sse").fetch(request, env, ctx);
+				response = await DevPlanMCPSession.serveSSE("/sse").fetch(request, env, ctx);
 			} else {
-				response = await DevPlanMCP.serve("/mcp").fetch(request, env, ctx);
+				response = await DevPlanMCPSession.serve("/mcp").fetch(request, env, ctx);
 			}
 
 			// Add rate limit headers to response
