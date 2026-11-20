@@ -59,6 +59,11 @@ new_sqlite_classes = ["DevPlanMCP"]
 tag = "v4"
 new_sqlite_classes = ["DevPlanMCPSession"]
 
+# Step 2 of 2: delete the unbound old class and every old session object (60 GB, 1.35M objects).
+[[migrations]]
+tag = "v5"
+deleted_classes = ["DevPlanMCP"]
+
 # =============================================================================
 # Secrets (add via: wrangler secret put <NAME>)
 # =============================================================================
