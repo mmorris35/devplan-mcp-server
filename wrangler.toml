@@ -26,6 +26,7 @@ FREE_TIER_LIMIT = "100"  # Requests per month for free tier
 SESSION_INACTIVITY_TTL_DAYS = "1"  # Days of inactivity before session cleanup
 SESSION_ABSOLUTE_TTL_DAYS = "7"    # Maximum session age in days
 CLEANUP_CHECK_HOURS = "1"          # Hours between cleanup alarm checks (aggressive for free tier)
+SESSION_TTL_HOURS = "24"           # One-shot session expiry: each MCP session object is destroyed this long after it starts
 
 # KV namespace for API keys and usage tracking
 [[kv_namespaces]]
@@ -50,6 +51,16 @@ deleted_classes = ["DevPlanMCP"]
 tag = "v3"
 new_sqlite_classes = ["DevPlanMCP"]
 
+# 2026-11-20: drop the 1.35M never-deleted session objects (60 GB SQLite storage, Mike "devplan fix go").
+# From here on each session expires itself (SESSION_TTL_HOURS, src/session-expiry.ts).
+[[migrations]]
+tag = "v4"
+deleted_classes = ["DevPlanMCP"]
+
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["DevPlanMCP"]
+
 # =============================================================================
 # Secrets (add via: wrangler secret put <NAME>)
 # =============================================================================
@@ -70,6 +81,7 @@ FREE_TIER_LIMIT = "100"
 SESSION_INACTIVITY_TTL_DAYS = "1"
 SESSION_ABSOLUTE_TTL_DAYS = "7"
 CLEANUP_CHECK_HOURS = "1"
+SESSION_TTL_HOURS = "24"
 ENVIRONMENT = "staging"
 
 [[env.staging.kv_namespaces]]
@@ -83,4 +95,13 @@ class_name = "DevPlanMCP"
 # Fresh migrations for staging (no delete needed - new worker)
 [[env.staging.migrations]]
 tag = "v1"
+new_sqlite_classes = ["DevPlanMCP"]
+
+# 2026-11-20: drop the 44k never-deleted staging session objects (1.98 GB)
+[[env.staging.migrations]]
+tag = "v2"
+deleted_classes = ["DevPlanMCP"]
+
+[[env.staging.migrations]]
+tag = "v3"
 new_sqlite_classes = ["DevPlanMCP"]
