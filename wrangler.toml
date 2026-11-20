@@ -104,3 +104,7 @@ new_sqlite_classes = ["DevPlanMCP"]
 [[env.staging.migrations]]
 tag = "v2"
 new_sqlite_classes = ["DevPlanMCPSession"]
+
+[[env.staging.migrations]]
+tag = "v3"
+deleted_classes = ["DevPlanMCP"]
