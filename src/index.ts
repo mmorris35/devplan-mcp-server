@@ -16,6 +16,7 @@ import {
 } from "./session-tracking";
 import { handleDashboard, handleDashboardAPI } from "./dashboard";
 import { handleLanding } from "./landing";
+import { ensureSessionExpiry, sessionTtlSeconds } from "./session-expiry";
 
 // Hash IP address for privacy-preserving usage tracking
 async function hashIP(ip: string): Promise<string> {
@@ -82,6 +83,7 @@ interface Env {
 	SESSION_INACTIVITY_TTL_DAYS: string;
 	SESSION_ABSOLUTE_TTL_DAYS: string;
 	CLEANUP_CHECK_HOURS: string;
+	SESSION_TTL_HOURS?: string; // one-shot session expiry (default 24)
 	ENVIRONMENT?: string; // "staging" for staging environment
 	DEVPLAN_KV: KVNamespace;
 	MCP_OBJECT: DurableObjectNamespace;
@@ -130,17 +132,15 @@ export class DevPlanMCP extends McpAgent {
 		// Keep sessionId for logging purposes only (no storage)
 		this.sessionId = generateSessionId();
 
-		// DISABLED: Alarm scheduling was causing massive DO write usage
-		// Each alarm reschedule counts as a write, and with thousands of DOs
-		// this exceeded the 100k rows_written/day free tier limit
-		// See: https://developers.cloudflare.com/durable-objects/api/alarms/
-		//
-		// const checkHours = parseInt(env.CLEANUP_CHECK_HOURS || "6");
-		// try {
-		// 	await this.schedule(checkHours * 60 * 60, "checkExpiration");
-		// } catch {
-		// 	// Scheduling failed - continue without cleanup
-		// }
+		// One-shot expiry (2026-11-20): every session schedules ONE expiry the first time it starts,
+		// never again while it is pending, and never reschedules after it fires (the old hourly
+		// self-rescheduling alarm is what blew the write limit). Without it, every session's
+		// SQLite object lived forever: 1.35M objects / 60 GB by 2026-11-20.
+		try {
+			await ensureSessionExpiry(this, sessionTtlSeconds(env.SESSION_TTL_HOURS));
+		} catch (err) {
+			console.error(`[DO:${this.sessionId}] could not schedule session expiry`, err);
+		}
 	}
 
 	/**
@@ -155,25 +155,25 @@ export class DevPlanMCP extends McpAgent {
 	async checkExpiration(): Promise<void> {
 		const ctx = (this as unknown as { ctx: DurableObjectState }).ctx;
 		const doId = ctx.id.toString().slice(0, 8);
-
-		// AGGRESSIVE CLEANUP: Always delete everything, never reschedule
-		// This stops the alarm feedback loop that was exceeding free tier limits
-		console.log(`[DO:${doId}] Zombie cleanup triggered - deleting all storage`);
+		// destroy() drops the SDK tables, deletes the alarm and all storage, and marks the agent
+		// destroyed so the SDK alarm loop stops without touching the dropped schedule table.
+		console.log(`[DO:${doId}] Session expired - destroying`);
 		try {
-			await ctx.storage.deleteAlarm();
-			await ctx.storage.deleteAll();
-			console.log(`[DO:${doId}] Cleanup complete - DO will cease to exist`);
+			await this.destroy();
 		} catch (err) {
-			console.error(`[DO:${doId}] Cleanup failed:`, err);
-			// If deleteAll fails, try to at least stop the alarm
+			console.error(`[DO:${doId}] destroy failed, falling back to deleteAll`, err);
 			try {
 				await ctx.storage.deleteAlarm();
-				console.log(`[DO:${doId}] Alarm deleted, storage cleanup failed`);
+				await ctx.storage.deleteAll();
 			} catch {
 				console.error(`[DO:${doId}] Total cleanup failure`);
 			}
+			// Tell the SDK alarm loop the agent is gone, so it does not run DELETE on a dropped table,
+			// throw, and make Cloudflare retry the alarm (Nagatha W1, PR #167).
+			(this as unknown as { _destroyed: boolean })._destroyed = true;
 		}
 	}
+
 
 	/**
 	 * Update activity timestamp when tools are called.
