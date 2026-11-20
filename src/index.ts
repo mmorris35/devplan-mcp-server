@@ -2338,3 +2338,10 @@ export default {
 		return new Response("Not Found", { status: 404 });
 	},
 };
+
+/**
+ * Step 1 of 2 (2026-11-20): the old class stays exported, unbound, so the upload that moves
+ * MCP_OBJECT to DevPlanMCPSession is accepted. Step 2 removes this export and deletes the class
+ * (and its 60 GB of old session objects) with a deleted_classes migration.
+ */
+export class DevPlanMCP extends DevPlanMCPSession {}

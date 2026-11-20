@@ -53,12 +53,11 @@ new_sqlite_classes = ["DevPlanMCP"]
 
 # 2026-11-20: drop the 1.35M never-deleted session objects (60 GB SQLite storage, Mike "devplan fix go").
 # From here on each session expires itself (SESSION_TTL_HOURS, src/session-expiry.ts).
-# Cloudflare refuses deleted_classes while a binding still names the class (code 10061), so the
-# binding moves to a new class name in the same migration: zero downtime, old storage dropped.
+# Step 1 of 2 (2026-11-20): the binding moves to a new class; DevPlanMCP stays exported but unbound.
+# Cloudflare refused deleting it in the same upload (code 10061), so step 2 deletes it alone.
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["DevPlanMCPSession"]
-deleted_classes = ["DevPlanMCP"]
 
 # =============================================================================
 # Secrets (add via: wrangler secret put <NAME>)
@@ -100,4 +99,3 @@ new_sqlite_classes = ["DevPlanMCP"]
 [[env.staging.migrations]]
 tag = "v2"
 new_sqlite_classes = ["DevPlanMCPSession"]
-deleted_classes = ["DevPlanMCP"]
