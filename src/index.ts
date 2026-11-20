@@ -168,6 +168,9 @@ export class DevPlanMCP extends McpAgent {
 			} catch {
 				console.error(`[DO:${doId}] Total cleanup failure`);
 			}
+			// Tell the SDK alarm loop the agent is gone, so it does not run DELETE on a dropped table,
+			// throw, and make Cloudflare retry the alarm (Nagatha W1, PR #167).
+			(this as unknown as { _destroyed: boolean })._destroyed = true;
 		}
 	}
 
