@@ -4,6 +4,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple.svg)](https://modelcontextprotocol.io)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
 [![21 Tools](https://img.shields.io/badge/Tools-21-blue.svg)](#tools)
+[![mcptry](https://mcptry.com/badge/io.github.mmorris35/devplan-mcp-server)](https://mcptry.com/servers/io.github.mmorris35/devplan-mcp-server)
 
 **Transform ideas into executable development plans** — an MCP server that brings the [ClaudeCode-DevPlanBuilder](https://github.com/mmorris35/ClaudeCode-DevPlanBuilder) methodology to Claude Code.
 
